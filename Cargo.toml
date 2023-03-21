@@ -1,0 +1,5 @@
+[workspace]
+members = [
+  "sudoku_engine",
+  "sudoku_solver",
+]

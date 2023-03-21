@@ -1,0 +1,20 @@
+on: [push, workflow_dispatch]
+
+name: Documentation
+
+jobs:
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: cargo doc --all
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@4.1.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: gh_pages
+          folder: target/doc
