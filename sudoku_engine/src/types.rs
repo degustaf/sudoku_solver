@@ -4,8 +4,10 @@
 use bitvec::array as bit_array;
 use core::ops::BitAnd;
 use core::ops::BitAndAssign;
+use core::ops::BitOr;
 use core::ops::Not;
 use std::iter::Iterator;
+use std::num::TryFromIntError;
 
 /// Errors for creating and solving sudoku.
 #[derive(Debug, PartialEq)]
@@ -18,6 +20,21 @@ pub enum SudokuErrors {
 
     /// Attempt to access an invalid index.
     OutOfBounds,
+
+    /// In a context that doesn't return an `Elimination`, a contradiction was found.
+    Contradiction,
+
+    /// Attempt to create a non-square board.
+    BadSize,
+
+    /// Attempted to use an invalid character as a digit in a sudoku.
+    BadDigit,
+}
+
+impl From<TryFromIntError> for SudokuErrors {
+    fn from(_: TryFromIntError) -> Self {
+        Self::BadDigit
+    }
 }
 
 /// Tracks if a strategy is sucessful.
@@ -47,7 +64,7 @@ impl Elimination {
     }
 }
 
-type Bits = bit_array::BitArray<[u32; 1]>;
+pub(crate) type Bits = bit_array::BitArray<[u32; 1]>;
 
 /// A representation of a sudoku board.
 #[derive(Debug)]
@@ -58,14 +75,12 @@ pub struct Board {
     /// The maximum value that is used in this sudoku.
     max_val: usize,
 
-    #[allow(dead_code)]
     /// Helps us count which values we've used for mean mini puzzles.
     used_digits: Bits,
 
     /// space to store the data.
     grid: Vec<Bits>,
 
-    #[allow(dead_code)]
     /// In a regular sudoku, these will represent the 9 3x3 boxes. We aren't hardcoding that in
     /// anticipation of irregular sudoku.
     regions: Vec<Vec<usize>>,
@@ -145,6 +160,26 @@ impl Board {
         })
     }
 
+    pub(crate) fn from_digits(
+        size: usize,
+        max_val: usize,
+        digits: &[Option<Bits>],
+    ) -> Result<Self, SudokuErrors> {
+        debug_assert_eq!(digits.len(), size * size);
+        let mut b = Self::new(size, max_val)?;
+
+        for (i, o) in digits.iter().enumerate() {
+            if let Some(d) = o {
+                if !b.grid[i].bitand(d).any() {
+                    return Err(SudokuErrors::Contradiction);
+                }
+                b.assign(i, *d);
+            }
+        }
+
+        Ok(b)
+    }
+
     /*
     pub fn create(size: usize, max_val: usize, digits: Vec<u8>) -> Result<Self, SudokuErrors> {
         let full = Self::fill(max_val)?;
@@ -208,6 +243,10 @@ impl Board {
             return Elimination::Same;
         }
         self.grid[idx] = value;
+        self.used_digits = self.used_digits.bitor(value);
+        if self.used_digits.count_ones() > self.size {
+            return Elimination::Contradiction;
+        }
 
         let row = self.size * (idx / self.size);
         let column = idx - row;
@@ -217,7 +256,10 @@ impl Board {
             ret = ret.combine(self.eliminate(i, value));
         }
 
-        for i in (column..(self.size * self.size)).filter(move |x| *x != idx) {
+        for i in (column..(self.size * self.size))
+            .step_by(self.size)
+            .filter(move |x| *x != idx)
+        {
             ret = ret.combine(self.eliminate(i, value));
         }
 
@@ -259,9 +301,35 @@ impl Board {
     }
 }
 
+pub(crate) fn to_bits(value: usize) -> Bits {
+    let mut v = Bits::ZERO;
+    debug_assert!(value < v.len());
+    v.set(value, true);
+    v
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use bitvec::bitarr;
+    use bitvec::prelude::Lsb0;
+
+    const ONE: Bits = bitarr!(const u32, Lsb0; 0,1);
+    const TWO: Bits = bitarr!(const u32, Lsb0; 0,0,1);
+    const THREE: Bits = bitarr!(const u32, Lsb0; 0,0,0,1);
+    const FOUR: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,1);
+    const FIVE: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,0,1);
+    const SIX: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,0,0,1);
+    const SEVEN: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,0,0,0,1);
+
+    #[test]
+    fn parsing_bad_digits() {
+        fn bad_digit() -> Result<usize, SudokuErrors> {
+            Ok(usize::try_from(-1)?)
+        }
+        assert_eq!(bad_digit(), Err(SudokuErrors::BadDigit));
+    }
 
     #[test]
     fn test_build_default_regions() {
@@ -329,6 +397,11 @@ mod tests {
     }
 
     #[test]
+    fn test_to_bits() {
+        assert_eq!(to_bits(6), SIX);
+    }
+
+    #[test]
     fn bad_to_bits() {
         let board = Board::new(9, 9).unwrap();
         assert_eq!(board.to_bits(16), Err(SudokuErrors::ValueTooLarge));
@@ -367,16 +440,14 @@ mod tests {
         let value = board.to_bits(6).unwrap();
         assert_eq!(board.assign(11, value), Elimination::Eliminated);
         assert_eq!(board.assign(11, value), Elimination::Same);
-        println!("{} {}", board.grid[9], value);
-        assert!(board.grid[9].bitand(value).not_any());
-        for i in (9..18).filter(|x| *x != 11) {
+        let sees = [
+            0, 1, 2, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 29, 38, 47, 56, 65, 74,
+        ];
+        for i in sees {
             assert!(board.grid[i].bitand(value).not_any());
         }
-        for i in [2, 20, 29, 38, 47, 56, 65, 74] {
-            assert!(board.grid[i].bitand(value).not_any());
-        }
-        for i in [0, 1, 2, 9, 10, 18, 19, 20] {
-            assert!(board.grid[i].bitand(value).not_any());
+        for i in (0..81).filter(|x| !sees.contains(x)) {
+            assert!(board.grid[i].bitand(value).any());
         }
     }
 
@@ -428,5 +499,82 @@ mod tests {
             Elimination::Contradiction.combine(Elimination::Contradiction),
             Elimination::Contradiction
         );
+    }
+
+    #[test]
+    fn from_digits() {
+        let mut digits: Vec<Option<Bits>> = vec![
+            Some(ONE),
+            None,
+            None,
+            None,
+            None,
+            Some(TWO),
+            None,
+            None,
+            None,
+            None,
+            Some(SIX),
+            None,
+            None,
+            None,
+            Some(TWO),
+            None,
+            None,
+            None,
+            None,
+            Some(SIX),
+            None,
+            None,
+            None,
+            Some(THREE),
+            None,
+            None,
+            None,
+            Some(FIVE),
+            None,
+            Some(ONE),
+            None,
+            Some(FOUR),
+            None,
+            None,
+            None,
+            None,
+        ];
+
+        assert_eq!(digits.len(), 36);
+        let response = Board::from_digits(6, 6, digits.as_ref());
+        assert!(response.is_ok());
+        let board = response.unwrap();
+
+        assert_eq!(board.grid[0], ONE);
+        assert_eq!(board.grid[5], TWO);
+        assert_eq!(board.grid[10], SIX);
+        assert_eq!(board.grid[14], TWO);
+        assert_eq!(board.grid[19], SIX);
+        assert_eq!(board.grid[23], THREE);
+        assert_eq!(board.grid[27], FIVE);
+        assert_eq!(board.grid[29], ONE);
+        assert_eq!(board.grid[31], FOUR);
+
+        // Naked single
+        assert_eq!(board.grid[35], SIX);
+
+        digits[6] = Some(SIX);
+        let err = Board::from_digits(6, 6, digits.as_ref());
+        assert!(err.is_err());
+        assert_eq!(err.unwrap_err(), SudokuErrors::Contradiction);
+    }
+
+    #[test]
+    fn too_many_digits() {
+        let mut board = Board::new(6, 9).unwrap();
+        assert_eq!(board.assign(0, ONE), Elimination::Eliminated);
+        assert_eq!(board.assign(1, TWO), Elimination::Eliminated);
+        assert_eq!(board.assign(2, THREE), Elimination::Eliminated);
+        assert_eq!(board.assign(3, FOUR), Elimination::Eliminated);
+        assert_eq!(board.assign(4, FIVE), Elimination::Eliminated);
+        assert_eq!(board.assign(5, SIX), Elimination::Eliminated);
+        assert_eq!(board.assign(6, SEVEN), Elimination::Contradiction);
     }
 }

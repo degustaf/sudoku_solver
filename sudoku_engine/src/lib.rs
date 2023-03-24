@@ -5,9 +5,38 @@ pub mod types;
 
 use types::SudokuErrors;
 
-// TODO make public wrappers of these functions.
-// Board::assign
-// Board::eliminate
+/// Convert a string of digits into the associated Board.
+///
+/// # Errors
+/// This function can return an error if
+/// - The string is not the right length to make a square board.
+/// - A character that can't be converted into a digit is in the string.
+pub fn from_string(repr: &str) -> Result<types::Board, SudokuErrors> {
+    #[allow(clippy::cast_precision_loss)]
+    // If our length overflows an f32, nothing later is going to work.
+    #[allow(clippy::cast_sign_loss)]
+    // sqrt is never negative.
+    #[allow(clippy::cast_possible_truncation)]
+    // We check if there's truncation, and return an error.
+    let size = f32::sqrt(repr.len() as f32) as usize;
+    if size * size != repr.len() {
+        return Err(SudokuErrors::BadSize);
+    }
+
+    let mut digits: Vec<Option<types::Bits>> = vec![None; size * size];
+    let mut max_val = size;
+    for (i, c) in repr.chars().enumerate() {
+        digits[i] = if let Some(d) = c.to_digit(16) {
+            let x = usize::try_from(d)?;
+            max_val = usize::max(max_val, x);
+            Some(types::to_bits(x))
+        } else {
+            None
+        }
+    }
+
+    types::Board::from_digits(size, max_val, &digits)
+}
 
 /// Place the digit `value` in the puzzle at location `idx`.
 ///
@@ -91,5 +120,24 @@ mod tests {
             eliminate(&mut board, 21, 16),
             Err(SudokuErrors::ValueTooLarge)
         );
+    }
+
+    #[test]
+    fn good_from_string() {
+        let resp = from_string(
+            "1...5.3..9.2..........3.4...8.....4..7..........6..81.6..2.8.........5.7.....1..9",
+        );
+        assert!(resp.is_ok());
+        // let board = resp.unwrap();
+
+        // Naked Singles
+        // assert_eq!(board.grid[70], bitarr!(u32, Lsb0; 0,1));
+    }
+
+    #[test]
+    fn bad_from_string() {
+        let resp = from_string("12345678");
+        assert!(resp.is_err());
+        assert_eq!(resp.unwrap_err(), SudokuErrors::BadSize);
     }
 }
