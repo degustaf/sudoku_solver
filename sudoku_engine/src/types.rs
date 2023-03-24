@@ -2,12 +2,12 @@
 
 #![warn(missing_docs)]
 use bitvec::array as bit_array;
+use core::iter::Iterator;
+use core::num::TryFromIntError;
 use core::ops::BitAnd;
 use core::ops::BitAndAssign;
 use core::ops::BitOr;
 use core::ops::Not;
-use std::iter::Iterator;
-use std::num::TryFromIntError;
 
 /// Errors for creating and solving sudoku.
 #[derive(Debug, PartialEq)]
@@ -37,6 +37,16 @@ impl From<TryFromIntError> for SudokuErrors {
     }
 }
 
+impl From<Contradiction> for SudokuErrors {
+    fn from(_: Contradiction) -> Self {
+        Self::Contradiction
+    }
+}
+
+/// Represents the deduction that a board is invalid.
+#[derive(Debug, PartialEq)]
+pub struct Contradiction(());
+
 /// Tracks if a strategy is sucessful.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Elimination {
@@ -45,18 +55,18 @@ pub enum Elimination {
 
     /// The strategy failed to eliminate any candidates.
     Same,
-
-    /// The strategy led to a contradiction.
-    Contradiction,
+    // /// The strategy led to a contradiction.
+    // Contradiction,
 }
 
 impl Elimination {
     /// Provides a way of combining elimination results that properly propogate the current state
     /// of eliminations.
     fn combine(self, rhs: Self) -> Self {
-        if self == Self::Contradiction || rhs == Self::Contradiction {
+        /* if self == Self::Contradiction || rhs == Self::Contradiction {
             Self::Contradiction
-        } else if self == Self::Eliminated {
+        } else*/
+        if self == Self::Eliminated {
             Self::Eliminated
         } else {
             rhs
@@ -173,7 +183,7 @@ impl Board {
                 if !b.grid[i].bitand(d).any() {
                     return Err(SudokuErrors::Contradiction);
                 }
-                b.assign(i, *d);
+                b.assign(i, *d)?;
             }
         }
 
@@ -234,18 +244,18 @@ impl Board {
     /// It is the callers responsability to pre verify that none of these conditions exist.
     /// We provide a wrapper [`sudoku_engine::assign`] that performs these checks so that library
     /// users may call this function directly without risking a panic.
-    pub(crate) fn assign(&mut self, idx: usize, value: Bits) -> Elimination {
+    pub(crate) fn assign(&mut self, idx: usize, value: Bits) -> Result<Elimination, Contradiction> {
         debug_assert_eq!(value.count_ones(), 1);
         debug_assert!(idx < self.len());
         debug_assert_eq!(self.grid[idx].bitand(value), value);
 
         if self.grid[idx] == value {
-            return Elimination::Same;
+            return Ok(Elimination::Same);
         }
         self.grid[idx] = value;
         self.used_digits = self.used_digits.bitor(value);
         if self.used_digits.count_ones() > self.size {
-            return Elimination::Contradiction;
+            return Err(Contradiction(()));
         }
 
         let row = self.size * (idx / self.size);
@@ -253,26 +263,26 @@ impl Board {
 
         let mut ret = Elimination::Same;
         for i in (row..(row + self.size)).filter(move |x| *x != idx) {
-            ret = ret.combine(self.eliminate(i, value));
+            ret = ret.combine(self.eliminate(i, value)?);
         }
 
         for i in (column..(self.size * self.size))
             .step_by(self.size)
             .filter(move |x| *x != idx)
         {
-            ret = ret.combine(self.eliminate(i, value));
+            ret = ret.combine(self.eliminate(i, value)?);
         }
 
         for region in &self.regions {
             if region.contains(&idx) {
                 for cell in region.clone().iter().filter(move |x| **x != idx) {
-                    ret = ret.combine(self.eliminate(*cell, value));
+                    ret = ret.combine(self.eliminate(*cell, value)?);
                 }
                 break;
             }
         }
 
-        ret
+        Ok(ret)
     }
 
     /// Eliminate digits contained in `value` from the grid at location `idx`.
@@ -285,18 +295,22 @@ impl Board {
     /// It is the callers responsability to pre verify that none of these conditions exist.
     /// We provide a wrapper [`sudoku_engine::eliminate`] that performs these checks so that library
     /// users may call this function directly without risking a panic.
-    pub(crate) fn eliminate(&mut self, idx: usize, value: Bits) -> Elimination {
+    pub(crate) fn eliminate(
+        &mut self,
+        idx: usize,
+        value: Bits,
+    ) -> Result<Elimination, Contradiction> {
         debug_assert!(idx < self.len());
 
         if !self.grid[idx].bitand(value).any() {
-            return Elimination::Same;
+            return Ok(Elimination::Same);
         }
 
         self.grid[idx].bitand_assign(value.not());
         if self.grid[idx] == Bits::ZERO {
-            Elimination::Contradiction
+            Err(Contradiction(()))
         } else {
-            Elimination::Eliminated
+            Ok(Elimination::Eliminated)
         }
     }
 }
@@ -412,7 +426,7 @@ mod tests {
         let mut board = Board::new(9, 9).unwrap();
         let value = board.to_bits(5).unwrap();
         assert!(board.possible_value(65, value));
-        board.eliminate(65, value);
+        assert_eq!(board.eliminate(65, value), Ok(Elimination::Eliminated));
         assert!(!board.possible_value(65, value));
     }
 
@@ -420,26 +434,26 @@ mod tests {
     fn eliminate_one() {
         let mut board = Board::new(9, 9).unwrap();
         let value = board.to_bits(6).unwrap();
-        assert_eq!(board.eliminate(11, value), Elimination::Eliminated);
-        assert_eq!(board.eliminate(11, value), Elimination::Same);
+        assert_eq!(board.eliminate(11, value), Ok(Elimination::Eliminated));
+        assert_eq!(board.eliminate(11, value), Ok(Elimination::Same));
     }
 
     #[test]
     fn eliminate_multiple() {
         let mut board = Board::new(9, 9).unwrap();
         let mut value = board.to_bits(6).unwrap();
-        assert_eq!(board.eliminate(11, value), Elimination::Eliminated);
+        assert_eq!(board.eliminate(11, value), Ok(Elimination::Eliminated));
         value.set(2, true);
-        assert_eq!(board.eliminate(11, value), Elimination::Eliminated);
-        assert_eq!(board.eliminate(11, value), Elimination::Same);
+        assert_eq!(board.eliminate(11, value), Ok(Elimination::Eliminated));
+        assert_eq!(board.eliminate(11, value), Ok(Elimination::Same));
     }
 
     #[test]
     fn assign() {
         let mut board = Board::new(9, 9).unwrap();
         let value = board.to_bits(6).unwrap();
-        assert_eq!(board.assign(11, value), Elimination::Eliminated);
-        assert_eq!(board.assign(11, value), Elimination::Same);
+        assert_eq!(board.assign(11, value), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(11, value), Ok(Elimination::Same));
         let sees = [
             0, 1, 2, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 29, 38, 47, 56, 65, 74,
         ];
@@ -455,8 +469,8 @@ mod tests {
     fn eliminate_after_assign() {
         let mut board = Board::new(9, 9).unwrap();
         let value = board.to_bits(6).unwrap();
-        assert_eq!(board.assign(11, value), Elimination::Eliminated);
-        assert_eq!(board.eliminate(11, value), Elimination::Contradiction);
+        assert_eq!(board.assign(11, value), Ok(Elimination::Eliminated));
+        assert_eq!(board.eliminate(11, value), Err(Contradiction(())));
     }
 
     #[test]
@@ -469,10 +483,6 @@ mod tests {
             Elimination::Eliminated.combine(Elimination::Same),
             Elimination::Eliminated
         );
-        assert_eq!(
-            Elimination::Eliminated.combine(Elimination::Contradiction),
-            Elimination::Contradiction
-        );
 
         assert_eq!(
             Elimination::Same.combine(Elimination::Eliminated),
@@ -481,23 +491,6 @@ mod tests {
         assert_eq!(
             Elimination::Same.combine(Elimination::Same),
             Elimination::Same
-        );
-        assert_eq!(
-            Elimination::Same.combine(Elimination::Contradiction),
-            Elimination::Contradiction
-        );
-
-        assert_eq!(
-            Elimination::Contradiction.combine(Elimination::Eliminated),
-            Elimination::Contradiction
-        );
-        assert_eq!(
-            Elimination::Contradiction.combine(Elimination::Same),
-            Elimination::Contradiction
-        );
-        assert_eq!(
-            Elimination::Contradiction.combine(Elimination::Contradiction),
-            Elimination::Contradiction
         );
     }
 
@@ -569,12 +562,12 @@ mod tests {
     #[test]
     fn too_many_digits() {
         let mut board = Board::new(6, 9).unwrap();
-        assert_eq!(board.assign(0, ONE), Elimination::Eliminated);
-        assert_eq!(board.assign(1, TWO), Elimination::Eliminated);
-        assert_eq!(board.assign(2, THREE), Elimination::Eliminated);
-        assert_eq!(board.assign(3, FOUR), Elimination::Eliminated);
-        assert_eq!(board.assign(4, FIVE), Elimination::Eliminated);
-        assert_eq!(board.assign(5, SIX), Elimination::Eliminated);
-        assert_eq!(board.assign(6, SEVEN), Elimination::Contradiction);
+        assert_eq!(board.assign(0, ONE), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(1, TWO), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(2, THREE), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(3, FOUR), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(4, FIVE), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(5, SIX), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(6, SEVEN), Err(Contradiction(())));
     }
 }

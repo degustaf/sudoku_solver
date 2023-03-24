@@ -54,9 +54,9 @@ pub fn assign(
     }
     let v = board.to_bits(value)?;
     if board.possible_value(idx, v) {
-        Ok(board.assign(idx, v))
+        Ok(board.assign(idx, v)?)
     } else {
-        Ok(types::Elimination::Contradiction)
+        Err(SudokuErrors::Contradiction)
     }
 }
 
@@ -75,7 +75,7 @@ pub fn eliminate(
         return Err(SudokuErrors::OutOfBounds);
     }
     let v = board.to_bits(value)?;
-    Ok(board.eliminate(idx, v))
+    Ok(board.eliminate(idx, v)?)
 }
 
 #[cfg(test)]
@@ -91,10 +91,7 @@ mod tests {
             assign(&mut board, 11, 6),
             Ok(types::Elimination::Eliminated)
         );
-        assert_eq!(
-            assign(&mut board, 11, 1),
-            Ok(types::Elimination::Contradiction)
-        );
+        assert_eq!(assign(&mut board, 11, 1), Err(SudokuErrors::Contradiction));
         assert_eq!(assign(&mut board, 1111, 6), Err(SudokuErrors::OutOfBounds));
         assert_eq!(assign(&mut board, 21, 16), Err(SudokuErrors::ValueTooLarge));
     }
@@ -109,7 +106,7 @@ mod tests {
         assign(&mut board, 11, 5).unwrap();
         assert_eq!(
             eliminate(&mut board, 11, 5),
-            Ok(types::Elimination::Contradiction)
+            Err(SudokuErrors::Contradiction)
         );
 
         assert_eq!(
