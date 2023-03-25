@@ -1,6 +1,7 @@
 //! Types for interacting with a sudoku puzzle.
 
 #![warn(missing_docs)]
+use crate::types::iter::SolutionIterator;
 use bitvec::array as bit_array;
 use core::iter::Iterator;
 use core::num::TryFromIntError;
@@ -9,7 +10,6 @@ use core::ops::BitAndAssign;
 use core::ops::BitOr;
 use core::ops::Not;
 use std::sync::Arc;
-use crate::types::iter::SolutionIter;
 
 /// Errors for creating and solving sudoku.
 #[derive(Debug, PartialEq)]
@@ -368,8 +368,8 @@ impl Board {
         self.grid[idx]
     }
 
-    pub fn solutions(&self) -> SolutionIter {
-        SolutionIter::new(self)
+    pub fn solutions(&self) -> SolutionIterator {
+        SolutionIterator::new(self)
     }
 }
 

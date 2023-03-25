@@ -8,12 +8,12 @@ use crate::Contradiction;
 
 #[allow(dead_code)]
 /// An iter that will generate solutions to the puzzle.
-pub struct SolutionIter {
+pub struct SolutionIterator {
     stack: Vec<(Board, usize, Vec<usize>)>,
 }
 
 #[allow(dead_code)]
-impl SolutionIter {
+impl SolutionIterator {
     fn solve_helper(board: &mut Board) -> Result<(), Contradiction> {
         // let mut status = Elimination::Same;
         while board.naked_singles()? == Elimination::Eliminated {
@@ -41,7 +41,7 @@ impl SolutionIter {
     }
 }
 
-impl std::iter::Iterator for SolutionIter {
+impl std::iter::Iterator for SolutionIterator {
     type Item = Board;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -96,7 +96,7 @@ mod tests {
         );
         assert!(res.is_ok());
         let board = res.unwrap();
-        let iter = SolutionIter::new(&board);
+        let iter = SolutionIterator::new(&board);
         assert_eq!(iter.count(), 78);
     }
 
@@ -107,7 +107,7 @@ mod tests {
         );
         assert!(res.is_ok());
         let board = res.unwrap();
-        let iter = SolutionIter::new(&board);
+        let iter = SolutionIterator::new(&board);
         assert_eq!(iter.count(), 0);
     }
 
@@ -118,7 +118,7 @@ mod tests {
         );
         assert!(res.is_ok());
         let board = res.unwrap();
-        let iter = SolutionIter::new(&board);
+        let iter = SolutionIterator::new(&board);
         assert_eq!(iter.count(), 0);
     }
 }
