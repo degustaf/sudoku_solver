@@ -666,7 +666,8 @@
 </pre><pre class="rust"><code><span class="doccomment">//! Types for interacting with a sudoku puzzle.
 
 </span><span class="attr">#![warn(missing_docs)]
-</span><span class="kw">use </span>bitvec::array <span class="kw">as </span>bit_array;
+</span><span class="kw">use </span><span class="kw">crate</span>::types::iter::SolutionIterator;
+<span class="kw">use </span>bitvec::array <span class="kw">as </span>bit_array;
 <span class="kw">use </span>core::iter::Iterator;
 <span class="kw">use </span>core::num::TryFromIntError;
 <span class="kw">use </span>core::ops::BitAnd;
@@ -674,7 +675,6 @@
 <span class="kw">use </span>core::ops::BitOr;
 <span class="kw">use </span>core::ops::Not;
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span><span class="kw">crate</span>::types::iter::SolutionIter;
 
 <span class="doccomment">/// Errors for creating and solving sudoku.
 </span><span class="attr">#[derive(Debug, PartialEq)]
@@ -1033,8 +1033,8 @@
         <span class="self">self</span>.grid[idx]
     }
 
-    <span class="kw">pub fn </span>solutions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SolutionIter {
-        SolutionIter::new(<span class="self">self</span>)
+    <span class="kw">pub fn </span>solutions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; SolutionIterator {
+        SolutionIterator::new(<span class="self">self</span>)
     }
 }
 

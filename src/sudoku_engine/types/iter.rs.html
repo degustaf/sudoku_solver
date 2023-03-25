@@ -132,12 +132,12 @@
 
 </span><span class="attr">#[allow(dead_code)]
 </span><span class="doccomment">/// An iter that will generate solutions to the puzzle.
-</span><span class="kw">pub struct </span>SolutionIter {
+</span><span class="kw">pub struct </span>SolutionIterator {
     stack: Vec&lt;(Board, usize, Vec&lt;usize&gt;)&gt;,
 }
 
 <span class="attr">#[allow(dead_code)]
-</span><span class="kw">impl </span>SolutionIter {
+</span><span class="kw">impl </span>SolutionIterator {
     <span class="kw">fn </span>solve_helper(board: <span class="kw-2">&amp;mut </span>Board) -&gt; <span class="prelude-ty">Result</span>&lt;(), Contradiction&gt; {
         <span class="comment">// let mut status = Elimination::Same;
         </span><span class="kw">while </span>board.naked_singles()<span class="question-mark">? </span>== Elimination::Eliminated {
@@ -165,7 +165,7 @@
     }
 }
 
-<span class="kw">impl </span>std::iter::Iterator <span class="kw">for </span>SolutionIter {
+<span class="kw">impl </span>std::iter::Iterator <span class="kw">for </span>SolutionIterator {
     <span class="kw">type </span>Item = Board;
 
     <span class="kw">fn </span>next(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>::Item&gt; {
@@ -220,7 +220,7 @@
         );
         <span class="macro">assert!</span>(res.is_ok());
         <span class="kw">let </span>board = res.unwrap();
-        <span class="kw">let </span>iter = SolutionIter::new(<span class="kw-2">&amp;</span>board);
+        <span class="kw">let </span>iter = SolutionIterator::new(<span class="kw-2">&amp;</span>board);
         <span class="macro">assert_eq!</span>(iter.count(), <span class="number">78</span>);
     }
 
@@ -231,7 +231,7 @@
         );
         <span class="macro">assert!</span>(res.is_ok());
         <span class="kw">let </span>board = res.unwrap();
-        <span class="kw">let </span>iter = SolutionIter::new(<span class="kw-2">&amp;</span>board);
+        <span class="kw">let </span>iter = SolutionIterator::new(<span class="kw-2">&amp;</span>board);
         <span class="macro">assert_eq!</span>(iter.count(), <span class="number">0</span>);
     }
 
@@ -242,7 +242,7 @@
         );
         <span class="macro">assert!</span>(res.is_ok());
         <span class="kw">let </span>board = res.unwrap();
-        <span class="kw">let </span>iter = SolutionIter::new(<span class="kw-2">&amp;</span>board);
+        <span class="kw">let </span>iter = SolutionIterator::new(<span class="kw-2">&amp;</span>board);
         <span class="macro">assert_eq!</span>(iter.count(), <span class="number">0</span>);
     }
 }
