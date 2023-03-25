@@ -1,9 +1,13 @@
 //! Provides ways to interact with a sudoku puzzle.
 
 #![warn(missing_docs)]
-pub mod types;
+mod types;
 
-use types::SudokuErrors;
+use types::board::Bits;
+use types::board::Board;
+use types::board::Contradiction;
+use types::board::Elimination;
+use types::board::SudokuErrors;
 
 /// Convert a string of digits into the associated Board.
 ///
@@ -11,7 +15,7 @@ use types::SudokuErrors;
 /// This function can return an error if
 /// - The string is not the right length to make a square board.
 /// - A character that can't be converted into a digit is in the string.
-pub fn from_string(repr: &str) -> Result<types::Board, SudokuErrors> {
+pub fn from_string(repr: &str) -> Result<Board, SudokuErrors> {
     #[allow(clippy::cast_precision_loss)]
     // If our length overflows an f32, nothing later is going to work.
     #[allow(clippy::cast_sign_loss)]
@@ -23,19 +27,19 @@ pub fn from_string(repr: &str) -> Result<types::Board, SudokuErrors> {
         return Err(SudokuErrors::BadSize);
     }
 
-    let mut digits: Vec<Option<types::Bits>> = vec![None; size * size];
+    let mut digits: Vec<Option<Bits>> = vec![None; size * size];
     let mut max_val = size;
     for (i, c) in repr.chars().enumerate() {
         digits[i] = if let Some(d) = c.to_digit(16) {
             let x = usize::try_from(d)?;
             max_val = usize::max(max_val, x);
-            Some(types::to_bits(x))
+            Some(types::board::to_bits(x))
         } else {
             None
         }
     }
 
-    types::Board::from_digits(size, max_val, &digits)
+    Board::from_digits(size, max_val, &digits)
 }
 
 /// Place the digit `value` in the puzzle at location `idx`.
@@ -44,11 +48,7 @@ pub fn from_string(repr: &str) -> Result<types::Board, SudokuErrors> {
 /// This function can return an error if
 /// - `idx` is out of bounds for the grid.
 /// - `value` is not a valid digit for the puzzle.
-pub fn assign(
-    board: &mut types::Board,
-    idx: usize,
-    value: usize,
-) -> Result<types::Elimination, SudokuErrors> {
+pub fn assign(board: &mut Board, idx: usize, value: usize) -> Result<Elimination, SudokuErrors> {
     if idx >= board.len() {
         return Err(SudokuErrors::OutOfBounds);
     }
@@ -66,11 +66,7 @@ pub fn assign(
 /// This function can return an error if
 /// - `idx` is out of bounds for the grid.
 /// - `value` is not a valid digit for the puzzle.
-pub fn eliminate(
-    board: &mut types::Board,
-    idx: usize,
-    value: usize,
-) -> Result<types::Elimination, SudokuErrors> {
+pub fn eliminate(board: &mut Board, idx: usize, value: usize) -> Result<Elimination, SudokuErrors> {
     if idx >= board.len() {
         return Err(SudokuErrors::OutOfBounds);
     }
@@ -78,19 +74,21 @@ pub fn eliminate(
     Ok(board.eliminate(idx, v)?)
 }
 
+#[allow(dead_code)]
+enum SolutionCount {
+    None,
+    One,
+    Many,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use types::Board;
-
     #[test]
     fn test_assign() {
         let mut board = Board::new(9, 9).unwrap();
-        assert_eq!(
-            assign(&mut board, 11, 6),
-            Ok(types::Elimination::Eliminated)
-        );
+        assert_eq!(assign(&mut board, 11, 6), Ok(Elimination::Eliminated));
         assert_eq!(assign(&mut board, 11, 1), Err(SudokuErrors::Contradiction));
         assert_eq!(assign(&mut board, 1111, 6), Err(SudokuErrors::OutOfBounds));
         assert_eq!(assign(&mut board, 21, 16), Err(SudokuErrors::ValueTooLarge));
@@ -99,10 +97,7 @@ mod tests {
     #[test]
     fn test_eliminate() {
         let mut board = Board::new(9, 9).unwrap();
-        assert_eq!(
-            eliminate(&mut board, 11, 6),
-            Ok(types::Elimination::Eliminated)
-        );
+        assert_eq!(eliminate(&mut board, 11, 6), Ok(Elimination::Eliminated));
         assign(&mut board, 11, 5).unwrap();
         assert_eq!(
             eliminate(&mut board, 11, 5),
