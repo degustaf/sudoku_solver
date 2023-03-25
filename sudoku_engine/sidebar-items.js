@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["assign","Place the digit `value` in the puzzle at location `idx`."],["eliminate","Eliminate digits contained in `value` from the grid at location `idx`."],["from_string","Convert a string of digits into the associated Board."]]};
