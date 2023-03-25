@@ -8,6 +8,7 @@ use core::ops::BitAnd;
 use core::ops::BitAndAssign;
 use core::ops::BitOr;
 use core::ops::Not;
+use std::sync::Arc;
 
 /// Errors for creating and solving sudoku.
 #[derive(Debug, PartialEq)]
@@ -45,7 +46,7 @@ impl From<Contradiction> for SudokuErrors {
 
 /// Represents the deduction that a board is invalid.
 #[derive(Debug, PartialEq)]
-pub struct Contradiction(());
+pub struct Contradiction(pub(crate) ());
 
 /// Tracks if a strategy is sucessful.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -55,17 +56,12 @@ pub enum Elimination {
 
     /// The strategy failed to eliminate any candidates.
     Same,
-    // /// The strategy led to a contradiction.
-    // Contradiction,
 }
 
 impl Elimination {
     /// Provides a way of combining elimination results that properly propogate the current state
     /// of eliminations.
     fn combine(self, rhs: Self) -> Self {
-        /* if self == Self::Contradiction || rhs == Self::Contradiction {
-            Self::Contradiction
-        } else*/
         if self == Self::Eliminated {
             Self::Eliminated
         } else {
@@ -75,25 +71,36 @@ impl Elimination {
 }
 
 pub(crate) type Bits = bit_array::BitArray<[u32; 1]>;
+type MoreBits = bit_array::BitArray<[u64; 4]>;
 
-/// A representation of a sudoku board.
 #[derive(Debug)]
-pub struct Board {
+struct BoardMeta {
     /// The size of a side of the board.
     size: usize,
 
     /// The maximum value that is used in this sudoku.
     max_val: usize,
 
+    /// In a regular sudoku, these will represent the 9 3x3 boxes. We aren't hardcoding that in
+    /// anticipation of irregular sudoku.
+    regions: Vec<Vec<usize>>,
+}
+
+/// A representation of a sudoku board.
+#[derive(Debug)]
+pub struct Board {
     /// Helps us count which values we've used for mean mini puzzles.
     used_digits: Bits,
+
+    /// Indices where we have placed a digit.
+    solved_digits: MoreBits,
 
     /// space to store the data.
     grid: Vec<Bits>,
 
-    /// In a regular sudoku, these will represent the 9 3x3 boxes. We aren't hardcoding that in
-    /// anticipation of irregular sudoku.
-    regions: Vec<Vec<usize>>,
+    /// Data that will remain constant during a solve. When we make a guess and copy a board, this
+    /// doesn't need to be copied.
+    meta: Arc<BoardMeta>,
 }
 
 fn build_default_regions(size: usize) -> Result<Vec<Vec<usize>>, SudokuErrors> {
@@ -162,11 +169,14 @@ impl Board {
         grid.fill(full);
 
         Ok(Board {
-            size,
-            max_val,
             used_digits: Bits::ZERO,
+            solved_digits: MoreBits::ZERO,
             grid,
-            regions: build_default_regions(size)?,
+            meta: Arc::new(BoardMeta {
+                size,
+                max_val,
+                regions: build_default_regions(size)?,
+            }),
         })
     }
 
@@ -190,12 +200,6 @@ impl Board {
         Ok(b)
     }
 
-    /*
-    pub fn create(size: usize, max_val: usize, digits: Vec<u8>) -> Result<Self, SudokuErrors> {
-        let full = Self::fill(max_val)?;
-    }
-    */
-
     fn empty_cell(max_val: usize) -> Result<Bits, SudokuErrors> {
         let mut full: Bits = Bits::ZERO;
         if full.len() <= max_val {
@@ -216,7 +220,7 @@ impl Board {
     }
 
     pub(crate) fn to_bits(&self, value: usize) -> Result<Bits, SudokuErrors> {
-        if value > self.max_val {
+        if value > self.meta.max_val {
             return Err(SudokuErrors::ValueTooLarge);
         }
         let mut v = Bits::ZERO;
@@ -249,31 +253,31 @@ impl Board {
         debug_assert!(idx < self.len());
         debug_assert_eq!(self.grid[idx].bitand(value), value);
 
-        if self.grid[idx] == value {
-            return Ok(Elimination::Same);
-        }
-        self.grid[idx] = value;
-        self.used_digits = self.used_digits.bitor(value);
-        if self.used_digits.count_ones() > self.size {
-            return Err(Contradiction(()));
+        if !self.solved_digits[idx] {
+            self.grid[idx] = value;
+            self.solved_digits.set(idx, true);
+            self.used_digits = self.used_digits.bitor(value);
+            if self.used_digits.count_ones() > self.meta.size {
+                return Err(Contradiction(()));
+            }
         }
 
-        let row = self.size * (idx / self.size);
+        let row = self.meta.size * (idx / self.meta.size);
         let column = idx - row;
 
         let mut ret = Elimination::Same;
-        for i in (row..(row + self.size)).filter(move |x| *x != idx) {
+        for i in (row..(row + self.meta.size)).filter(move |x| *x != idx) {
             ret = ret.combine(self.eliminate(i, value)?);
         }
 
-        for i in (column..(self.size * self.size))
-            .step_by(self.size)
+        for i in (column..(self.meta.size * self.meta.size))
+            .step_by(self.meta.size)
             .filter(move |x| *x != idx)
         {
             ret = ret.combine(self.eliminate(i, value)?);
         }
 
-        for region in &self.regions {
+        for region in &self.meta.regions {
             if region.contains(&idx) {
                 for cell in region.clone().iter().filter(move |x| **x != idx) {
                     ret = ret.combine(self.eliminate(*cell, value)?);
@@ -312,6 +316,54 @@ impl Board {
         } else {
             Ok(Elimination::Eliminated)
         }
+    }
+
+    /// Check whether the puzzle is solved.
+    #[must_use]
+    pub fn solved(&self) -> bool {
+        self.solved_digits.count_ones() == self.meta.size * self.meta.size
+    }
+
+    /// Search the grid for places where there is only a single candidate.
+    #[allow(clippy::missing_errors_doc)]
+    pub fn naked_singles(&mut self) -> Result<Elimination, Contradiction> {
+        let mut ret = Elimination::Same;
+
+        let temp: Vec<(usize, Bits)> = self
+            .grid
+            .iter()
+            .enumerate()
+            .filter(|(i, d)| d.count_ones() == 1 && !self.solved_digits[*i])
+            .map(|(i, d)| (i, *d))
+            .collect();
+
+        for (i, d) in temp {
+            ret = ret.combine(self.assign(i, d)?);
+        }
+
+        Ok(ret)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn next_idx_to_guess(&self) -> Option<usize> {
+        let mut count = self.meta.size + 1;
+        let mut ret = None;
+
+        for (i, d) in self.grid.iter().enumerate() {
+            if d.count_ones() == 1 {
+                continue;
+            }
+            if d.count_ones() < count {
+                count = d.count_ones();
+                ret = Some(i);
+            }
+        }
+        ret
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn get_values(&self, idx: usize) -> Bits {
+        self.grid[idx]
     }
 }
 
@@ -386,8 +438,8 @@ mod tests {
         let res = Board::new(9, 9);
         assert!(res.is_ok());
         let board = res.unwrap();
-        assert_eq!(board.size, 9);
-        assert_eq!(board.max_val, 9);
+        assert_eq!(board.meta.size, 9);
+        assert_eq!(board.meta.max_val, 9);
         assert_eq!(board.used_digits, Bits::ZERO);
         assert_eq!(board.len(), 81);
         for v in board.grid {
@@ -538,7 +590,7 @@ mod tests {
         assert_eq!(digits.len(), 36);
         let response = Board::from_digits(6, 6, digits.as_ref());
         assert!(response.is_ok());
-        let board = response.unwrap();
+        let mut board = response.unwrap();
 
         assert_eq!(board.grid[0], ONE);
         assert_eq!(board.grid[5], TWO);
@@ -552,6 +604,9 @@ mod tests {
 
         // Naked single
         assert_eq!(board.grid[35], SIX);
+        assert_eq!(board.naked_singles(), Ok(Elimination::Eliminated));
+        assert!(board.solved_digits[35]);
+        assert!(!board.solved());
 
         digits[6] = Some(SIX);
         let err = Board::from_digits(6, 6, digits.as_ref());
@@ -569,5 +624,36 @@ mod tests {
         assert_eq!(board.assign(4, FIVE), Ok(Elimination::Eliminated));
         assert_eq!(board.assign(5, SIX), Ok(Elimination::Eliminated));
         assert_eq!(board.assign(6, SEVEN), Err(Contradiction(())));
+    }
+
+    #[test]
+    fn bits_size() {
+        let x = Bits::ZERO;
+        assert_eq!(x.len(), 32);
+        let y = MoreBits::ZERO;
+        assert_eq!(y.len(), 256);
+    }
+
+    #[test]
+    fn next_idx_to_guess() {
+        let mut board = Board::new(6, 6).unwrap();
+        assert_eq!(board.assign(0, ONE), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(1, TWO), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(2, THREE), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(13, FOUR), Ok(Elimination::Eliminated));
+
+        // At this point cell 7 is the most constrained as it sees all of the placed digits.
+        assert_eq!(board.next_idx_to_guess(), Some(7));
+    }
+
+    #[test]
+    fn get_values() {
+        let mut board = Board::new(6, 6).unwrap();
+        assert_eq!(board.assign(0, ONE), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(1, TWO), Ok(Elimination::Eliminated));
+        assert_eq!(board.assign(2, THREE), Ok(Elimination::Eliminated));
+        for i in 0..36 {
+            assert_eq!(board.get_values(i), board.grid[i]);
+        }
     }
 }
