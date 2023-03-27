@@ -1,5 +1,7 @@
 [workspace]
 members = [
+  "f_puzzles",
+  "listener",
   "sudoku_engine",
   "sudoku_solver",
 ]

@@ -346,7 +346,6 @@ impl Board {
         Ok(ret)
     }
 
-    #[allow(dead_code)]
     pub(crate) fn next_idx_to_guess(&self) -> Option<usize> {
         let mut count = self.meta.size + 1;
         let mut ret = None;
@@ -363,7 +362,6 @@ impl Board {
         ret
     }
 
-    #[allow(dead_code)]
     pub(crate) fn get_values(&self, idx: usize) -> Bits {
         self.grid[idx]
     }

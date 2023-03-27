@@ -6,13 +6,11 @@ use crate::Elimination;
 use crate::Contradiction;
 // use crate::types::board;
 
-#[allow(dead_code)]
 /// An iter that will generate solutions to the puzzle.
 pub struct SolutionIterator {
     stack: Vec<(Board, usize, Vec<usize>)>,
 }
 
-#[allow(dead_code)]
 impl SolutionIterator {
     fn solve_helper(board: &mut Board) -> Result<(), Contradiction> {
         // let mut status = Elimination::Same;
