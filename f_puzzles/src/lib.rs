@@ -4,9 +4,12 @@
 #![warn(missing_docs)]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
-struct Cell {
-    value: Option<usize>,
+/// A description of the state of an individual cell in the grid.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Cell {
+    /// The filled in value in a grid cell.
+    pub value: Option<usize>,
+
     #[serde(default)]
     given: bool,
     #[serde(rename = "centerPencilMarks")]
@@ -15,10 +18,27 @@ struct Cell {
     #[serde(rename = "cornerPencilMarks")]
     #[serde(default)]
     corner_pencil_marks: Vec<usize>,
+
+    /// Any pencilmarks that are to be treated as given.
     #[serde(rename = "givenPencilMarks")]
     #[serde(default)]
-    given_pencil_marks: Vec<usize>,
-    region: Option<usize>,
+    pub given_pencil_marks: Vec<usize>,
+
+    /// Which region this cell should be a part of.
+    pub region: Option<usize>,
+}
+
+impl Cell {
+    fn new() -> Self {
+        Cell {
+            value: None,
+            given: false,
+            center_pencil_marks: Vec::new(),
+            corner_pencil_marks: Vec::new(),
+            given_pencil_marks: Vec::new(),
+            region: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -61,8 +81,11 @@ struct Quad {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct FPuzzles {
-    size: usize,
-    grid: Vec<Vec<Cell>>,
+    /// The dimension of the Sudoku grid.
+    pub size: usize,
+
+    /// The individual cells in the board.
+    pub grid: Vec<Vec<Cell>>,
     #[serde(rename = "diagonal+")]
     #[serde(default)]
     positive_diagonal: bool,
@@ -89,6 +112,52 @@ pub struct FPuzzles {
     quadruple: Vec<Quad>,
 }
 
-/*
- * {"size":9,"quadruple":[{"cells":["R6C3","R6C4","R7C3","R7C4"],"values":[1,2,2,3]},{"cells":["R3C6","R3C7","R4C6","R4C7"],"values":[4,5,6,7]},{"cells":["R6C6","R6C7","R7C6","R7C7"],"values":[8,9]}]
- */
+impl FPuzzles {
+    /// Create a new sudoku puzzle in the f-puzzles format.
+    #[must_use]
+    pub fn new(size: usize) -> Self {
+        FPuzzles {
+            size,
+            grid: vec![vec!(Cell::new(); size); size],
+            positive_diagonal: false,
+            negative_diagonal: false,
+            antiknight: false,
+            antiking: false,
+            disjointgroups: false,
+            nonconsecutive: false,
+            disabledlogic: Vec::new(),
+            truecandidatesoptions: Vec::new(),
+            difference: Vec::new(),
+            ratio: Vec::new(),
+            quadruple: Vec::new(),
+        }
+    }
+
+    /// Test if the puzzle has an irregular grid.
+    #[must_use]
+    pub fn is_irregular(&self) -> bool {
+        for row in &self.grid {
+            for cell in row {
+                if cell.region.is_some() {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn irregular_region() {
+        let mut f = FPuzzles::new(9);
+        assert!(!f.is_irregular());
+
+        f.grid[0][0].region = Some(1);
+        assert!(f.is_irregular());
+    }
+}

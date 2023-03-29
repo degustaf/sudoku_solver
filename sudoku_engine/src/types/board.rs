@@ -9,6 +9,7 @@ use core::ops::BitAnd;
 use core::ops::BitAndAssign;
 use core::ops::BitOr;
 use core::ops::Not;
+use f_puzzles::FPuzzles;
 use std::sync::Arc;
 
 /// Errors for creating and solving sudoku.
@@ -31,6 +32,9 @@ pub enum SudokuErrors {
 
     /// Attempted to use an invalid character as a digit in a sudoku.
     BadDigit,
+
+    /// An irregular
+    IrregularWrongSizes,
 }
 
 impl From<TryFromIntError> for SudokuErrors {
@@ -162,6 +166,14 @@ impl Board {
     /// - `max_val` is less than size.
     /// - `max_val` is greater than 32.
     pub fn new(size: usize, max_val: usize) -> Result<Self, SudokuErrors> {
+        Self::new_with_regions(size, max_val, build_default_regions(size)?)
+    }
+
+    fn new_with_regions(
+        size: usize,
+        max_val: usize,
+        regions: Vec<Vec<usize>>,
+    ) -> Result<Self, SudokuErrors> {
         if max_val < size {
             return Err(SudokuErrors::MaxTooLarge);
         }
@@ -177,7 +189,7 @@ impl Board {
             meta: Arc::new(BoardMeta {
                 size,
                 max_val,
-                regions: build_default_regions(size)?,
+                regions,
             }),
         })
     }
@@ -306,7 +318,7 @@ impl Board {
         idx: usize,
         value: Bits,
     ) -> Result<Elimination, Contradiction> {
-        debug_assert!(idx < self.len());
+        debug_assert!(idx <= self.len());
 
         if !self.grid[idx].bitand(value).any() {
             return Ok(Elimination::Same);
@@ -368,6 +380,62 @@ impl Board {
 
     pub fn solutions(&self) -> SolutionIterator {
         SolutionIterator::new(self)
+    }
+}
+
+fn regions(f: &FPuzzles) -> Vec<Vec<usize>> {
+    let (width, height) = DIMENSIONS[f.size - 1];
+    let mut ret = vec![Vec::new(); f.size];
+    for (r, row) in f.grid.iter().enumerate() {
+        let box_r = (r / height) * height;
+        for (c, cell) in row.iter().enumerate() {
+            let idx = r * f.size + c;
+            match cell.region {
+                Some(i) => {
+                    ret[i].push(idx);
+                }
+                None => {
+                    ret[box_r + (c / width)].push(idx);
+                }
+            }
+        }
+    }
+
+    ret
+}
+
+impl TryFrom<&FPuzzles> for Board {
+    type Error = SudokuErrors;
+
+    fn try_from(f: &FPuzzles) -> Result<Self, SudokuErrors> {
+        if f.size == 0 || f.size > DIMENSIONS.len() {
+            return Err(SudokuErrors::OutOfBounds);
+        }
+        let mut ret = if f.is_irregular() {
+            let reg = regions(f);
+            if reg.iter().any(|x| x.len() != f.size) {
+                return Err(SudokuErrors::IrregularWrongSizes);
+            }
+            Board::new_with_regions(f.size, f.size, reg)?
+        } else {
+            Board::new(f.size, f.size)?
+        };
+
+        for (r, row) in f.grid.iter().enumerate() {
+            for (c, cell) in row.iter().enumerate() {
+                if let Some(v) = cell.value {
+                    ret.assign(r * f.size + c, to_bits(v))?;
+                } else if !cell.given_pencil_marks.is_empty() {
+                    for v in 1..=ret.meta.max_val {
+                        if !cell.given_pencil_marks.contains(&v) {
+                            ret.eliminate(r * f.size + c, to_bits(v))?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(ret)
     }
 }
 
@@ -659,5 +727,54 @@ mod tests {
         for i in 0..36 {
             assert_eq!(board.get_values(i), board.grid[i]);
         }
+    }
+
+    #[test]
+    fn irregular_regions() {
+        let mut f = FPuzzles::new(9);
+        f.grid[0][3].region = Some(0);
+        f.grid[2][2].region = Some(1);
+        let regions = regions(&f);
+        assert_eq!(regions[0], vec![0, 1, 2, 3, 9, 10, 11, 18, 19]);
+        assert_eq!(regions[1], vec![4, 5, 12, 13, 14, 20, 21, 22, 23]);
+    }
+
+    #[test]
+    fn from_f_puzzles() {
+        let mut f = FPuzzles::new(9);
+        f.grid[1][3].value = Some(1);
+        f.grid[4][4].value = Some(5);
+        f.grid[7][8].given_pencil_marks = vec![1, 2, 3];
+        let res_b = Board::try_from(&f);
+        println!("{res_b:?}");
+        assert!(res_b.is_ok());
+        let b = res_b.unwrap();
+        assert_eq!(b.grid[12], ONE);
+        assert_eq!(b.grid[40], FIVE);
+        assert_eq!(b.grid[71], bitarr!(u32, Lsb0; 0,1,1,1));
+    }
+
+    #[test]
+    fn from_f_puzzles_too_big() {
+        let f = FPuzzles::new(17);
+        let res_b = Board::try_from(&f);
+        assert!(res_b.is_err());
+        assert_eq!(res_b.unwrap_err(), SudokuErrors::OutOfBounds);
+    }
+
+    #[test]
+    fn from_f_puzzles_irregular() {
+        let mut f = FPuzzles::new(9);
+        f.grid[0][3].region = Some(0);
+        let mut res_b = Board::try_from(&f);
+        assert!(res_b.is_err());
+        assert_eq!(res_b.unwrap_err(), SudokuErrors::IrregularWrongSizes);
+
+        f.grid[2][2].region = Some(1);
+        res_b = Board::try_from(&f);
+        assert!(res_b.is_ok());
+        let b = res_b.unwrap();
+        assert_eq!(b.meta.regions[0], vec![0, 1, 2, 3, 9, 10, 11, 18, 19]);
+        assert_eq!(b.meta.regions[1], vec![4, 5, 12, 13, 14, 20, 21, 22, 23]);
     }
 }

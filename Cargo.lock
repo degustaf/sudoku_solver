@@ -689,6 +689,7 @@ name = "sudoku_engine"
 version = "0.1.0"
 dependencies = [
  "bitvec",
+ "f_puzzles",
 ]
 
 [[package]]
