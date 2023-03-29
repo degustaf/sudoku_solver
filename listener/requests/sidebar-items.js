@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["Command",""],["Request",""],["Response",""]],"fn":[["process_fpuzzles_data",""],["process_message",""],["process_message_helper",""]],"struct":[["Error",""],["LogicalCell",""]]};
+window.SIDEBAR_ITEMS = {"enum":[["Command",""],["Request",""],["Response",""]],"fn":[["process_fpuzzles_data",""],["process_message",""]],"struct":[["Error",""],["LogicalCell",""]]};
