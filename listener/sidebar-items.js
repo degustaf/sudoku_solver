@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["handler","This function is heavily based on the warp example."],["main",""]],"mod":[["requests",""]]};

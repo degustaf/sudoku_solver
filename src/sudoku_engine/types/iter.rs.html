@@ -120,8 +120,6 @@
 <a href="#120" id="120">120</a>
 <a href="#121" id="121">121</a>
 <a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
 </pre><pre class="rust"><code><span class="doccomment">/// Implementation of the solution iterator. This iterator is used to generate solutions to given
 /// puzzle. This provides the core engine used to find **a** solution, and to count solutions.
 </span><span class="kw">use </span><span class="kw">crate</span>::Board;
@@ -130,14 +128,12 @@
 </span><span class="kw">use </span><span class="kw">crate</span>::Contradiction;
 <span class="comment">// use crate::types::board;
 
-</span><span class="attr">#[allow(dead_code)]
 </span><span class="doccomment">/// An iter that will generate solutions to the puzzle.
 </span><span class="kw">pub struct </span>SolutionIterator {
     stack: Vec&lt;(Board, usize, Vec&lt;usize&gt;)&gt;,
 }
 
-<span class="attr">#[allow(dead_code)]
-</span><span class="kw">impl </span>SolutionIterator {
+<span class="kw">impl </span>SolutionIterator {
     <span class="kw">fn </span>solve_helper(board: <span class="kw-2">&amp;mut </span>Board) -&gt; <span class="prelude-ty">Result</span>&lt;(), Contradiction&gt; {
         <span class="comment">// let mut status = Elimination::Same;
         </span><span class="kw">while </span>board.naked_singles()<span class="question-mark">? </span>== Elimination::Eliminated {
@@ -247,4 +243,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="sudoku_engine" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.1 (8460ca823 2023-03-20)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="sudoku_engine" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
