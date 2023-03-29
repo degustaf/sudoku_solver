@@ -5,6 +5,10 @@
 
 #![warn(missing_docs)]
 use futures_util::{SinkExt, StreamExt, TryFutureExt};
+use requests::Response;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::CancellationToken;
 use warp::filters::ws::Message;
 use warp::ws::{WebSocket, Ws};
 use warp::{cors, Filter};
@@ -17,7 +21,24 @@ async fn handler(ws: WebSocket) {
     println!("Connection established.");
     let (mut ws_tx, mut ws_rcv) = ws.split();
 
+    let (ch_tx, ch_rx) = mpsc::channel::<Response>(100); // I would be very surprised if we get anywhere close to this.
+    let mut ch_rx = ReceiverStream::new(ch_rx);
+
+    tokio::task::spawn(async move {
+        while let Some(message) = ch_rx.next().await {
+            let json = serde_json::to_string(&message).unwrap(); // to_string failing is a programmer error, and should panic.
+            let msg = Message::text(json);
+            ws_tx
+                .send(msg)
+                .unwrap_or_else(|e| {
+                    eprintln!("websocket send error: {e}");
+                })
+                .await;
+        }
+    });
+
     while let Some(result) = ws_rcv.next().await {
+        let token = CancellationToken::new();
         let msg = match result {
             Ok(msg) => {
                 if msg.is_close() {
@@ -36,19 +57,11 @@ async fn handler(ws: WebSocket) {
             }
         };
 
-        let response = requests::process_message(&msg);
-        let json = serde_json::to_string(&response).unwrap(); // to_string failing is a programmer error, and should panic.
-        let msg = Message::text(json);
-        ws_tx
-            .send(msg)
-            .unwrap_or_else(|e| {
-                eprintln!("websocket send error: {e}");
-            })
-            .await;
+        requests::process_message(&msg, token, ch_tx.clone()).await;
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let route = warp::path::end()
         .and(warp::ws())
@@ -56,5 +69,3 @@ async fn main() {
         .with(cors().allow_any_origin());
     warp::serve(route).run(([127, 0, 0, 1], 4545)).await;
 }
-
-// listener/src/main.rs: 16-18, 20-24, 26-27, 29, 33-34, 39-45, 47, 51-57

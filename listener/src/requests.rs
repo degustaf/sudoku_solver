@@ -3,6 +3,8 @@
 use f_puzzles::FPuzzles;
 use serde::{Deserialize, Serialize};
 use std::string::FromUtf16Error;
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Deserialize, Serialize)]
 enum Command {
@@ -107,7 +109,13 @@ impl From<serde_json::Error> for Error {
     }
 }
 
-fn process_fpuzzles_data(nonce: usize, _command: &Command, data: &str) -> Result<Response, Error> {
+#[allow(clippy::needless_pass_by_value)]
+fn process_fpuzzles_data(
+    nonce: usize,
+    _command: &Command,
+    data: &str,
+    _token: CancellationToken,
+) -> Result<Response, Error> {
     let f_data = match lz_str::decompress_from_base64(data) {
         Some(f) => String::from_utf16(&f)?,
         None => {
@@ -123,13 +131,19 @@ fn process_fpuzzles_data(nonce: usize, _command: &Command, data: &str) -> Result
     })
 }
 
-fn process_message_helper(msg: &str) -> Result<Response, Response> {
-    let v: Request = serde_json::from_str(msg)?;
+pub async fn process_message(msg: &str, token: CancellationToken, ch_tx: mpsc::Sender<Response>) {
+    let v: Request = match serde_json::from_str(msg) {
+        Ok(v) => v,
+        Err(e) => {
+            if (ch_tx.send(Response::from(e)).await).is_ok() {};
+            return;
+        }
+    };
     match v {
         Request::Cancel { nonce, command } => {
             println!("{command:?}: {nonce}");
-            // TODO
-            Ok(Response::Cancelled { nonce })
+            token.cancel();
+            if (ch_tx.send(Response::Cancelled { nonce }).await).is_ok() {};
         }
         Request::Command {
             nonce,
@@ -138,27 +152,32 @@ fn process_message_helper(msg: &str) -> Result<Response, Response> {
             data,
         } => {
             if data_type != "fpuzzles" {
-                return Err(Response::Invalid {
-                    nonce,
-                    message: "Invalid data format".to_string(),
-                });
+                if (ch_tx
+                    .send(Response::Invalid {
+                        nonce,
+                        message: "Invalid data format".to_string(),
+                    })
+                    .await)
+                    .is_ok()
+                {};
+                return;
             }
             println!("{command:?}");
-            match process_fpuzzles_data(nonce, &command, &data) {
-                Ok(res) => Ok(res),
-                Err(e) => Err(Response::Invalid {
-                    nonce,
-                    message: e.msg,
-                }),
-            }
+            let _f_data = match process_fpuzzles_data(nonce, &command, &data, token) {
+                Ok(f_data) => f_data,
+                Err(e) => {
+                    if (ch_tx
+                        .send(Response::Invalid {
+                            nonce,
+                            message: e.msg,
+                        })
+                        .await)
+                        .is_ok()
+                    {};
+                    return;
+                }
+            };
         }
-    }
-}
-
-pub fn process_message(msg: &str) -> Response {
-    match process_message_helper(msg) {
-        Ok(res) => res,
-        Err(e) => e,
     }
 }
 
@@ -166,7 +185,9 @@ pub fn process_message(msg: &str) -> Response {
 mod tests {
     use super::*;
 
+    use futures_util::StreamExt;
     use serde_json::Value;
+    use tokio_stream::wrappers::ReceiverStream;
 
     #[test]
     fn utf16_error() {
@@ -203,25 +224,32 @@ mod tests {
 
     #[test]
     fn bad_n64_data() {
-        let processed = process_fpuzzles_data(0, &Command::Solve, "000000");
+        let token = CancellationToken::new();
+        let processed = process_fpuzzles_data(0, &Command::Solve, "000000", token);
         assert!(processed.is_err());
         let err = processed.unwrap_err();
         assert_eq!(err.msg, "Corrupted N64 encoded data.".to_string());
     }
 
-    #[test]
-    fn cancel_request() {
+    #[tokio::test]
+    async fn cancel_request() {
         let data = Request::Cancel {
             nonce: 9,
             command: Command::Cancel,
         };
         let request = serde_json::to_string(&data).unwrap();
-        let response = process_message(&request);
-        assert_eq!(response, Response::Cancelled { nonce: 9 });
+        let token = CancellationToken::new();
+        let (ch_tx, ch_rx) = mpsc::channel::<Response>(1);
+        let mut ch_rx = ReceiverStream::new(ch_rx);
+        process_message(&request, token.clone(), ch_tx).await;
+        assert!(token.is_cancelled());
+        let response = ch_rx.next().await;
+        assert!(response.is_some());
+        assert_eq!(response.unwrap(), Response::Cancelled { nonce: 9 });
     }
 
-    #[test]
-    fn not_fpuzzles_data() {
+    #[tokio::test]
+    async fn not_fpuzzles_data() {
         let data = Request::Command {
             nonce: 9,
             command: Command::Solve,
@@ -229,9 +257,14 @@ mod tests {
             data: String::new(),
         };
         let request = serde_json::to_string(&data).unwrap();
-        let response = process_message(&request);
+        let token = CancellationToken::new();
+        let (ch_tx, ch_rx) = mpsc::channel::<Response>(1);
+        let mut ch_rx = ReceiverStream::new(ch_rx);
+        process_message(&request, token.clone(), ch_tx).await;
+        let response = ch_rx.next().await;
+        assert!(response.is_some());
         assert_eq!(
-            response,
+            response.unwrap(),
             Response::Invalid {
                 nonce: 9,
                 message: "Invalid data format".to_string()
@@ -239,8 +272,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn bad_n64_data_in_request() {
+    #[tokio::test]
+    async fn bad_n64_data_in_request() {
         let data = Request::Command {
             nonce: 9,
             command: Command::Solve,
@@ -248,9 +281,14 @@ mod tests {
             data: "000000".to_string(),
         };
         let request = serde_json::to_string(&data).unwrap();
-        let response = process_message(&request);
+        let token = CancellationToken::new();
+        let (ch_tx, ch_rx) = mpsc::channel::<Response>(1);
+        let mut ch_rx = ReceiverStream::new(ch_rx);
+        process_message(&request, token.clone(), ch_tx).await;
+        let response = ch_rx.next().await;
+        assert!(response.is_some());
         assert_eq!(
-            response,
+            response.unwrap(),
             Response::Invalid {
                 nonce: 9,
                 message: "Corrupted N64 encoded data.".to_string(),
