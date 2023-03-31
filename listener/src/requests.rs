@@ -233,4 +233,74 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn check_puzzle() {
+        let res_f = FPuzzles::try_from(
+            "19..7..5....28..........37.2.5.....4...4.5.....6.....9731....2....82.....4....91.",
+        );
+        assert!(res_f.is_ok());
+        let f = res_f.unwrap();
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(1);
+        assert!(check_solutions(42, &f, &token, &ch_tx).is_ok());
+        let response = ch_rx.try_recv();
+        assert!(response.is_ok());
+        assert_eq!(
+            response.unwrap(),
+            Response::Count {
+                nonce: 42,
+                count: 1,
+                in_progress: false,
+            }
+        );
+        token.cancel();
+        assert!(check_solutions(43, &f, &token, &ch_tx).is_ok());
+    }
+
+    #[test]
+    fn check_puzzle_multiple_solutions() {
+        let res_f = FPuzzles::try_from(
+            ".9..7..5....28..........37.2.5.....4...4.5.....6.....9731....2....82.....4....91.",
+        );
+        assert!(res_f.is_ok());
+        let f = res_f.unwrap();
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(1);
+        assert!(check_solutions(42, &f, &token, &ch_tx).is_ok());
+        let response = ch_rx.try_recv();
+        assert!(response.is_ok());
+        assert_eq!(
+            response.unwrap(),
+            Response::Count {
+                nonce: 42,
+                count: 2,
+                in_progress: false,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn process_fpuzzles_data_test() {
+        let res_f = FPuzzles::try_from(
+            ".9..7..5....28..........37.2.5.....4...4.5.....6.....9731....2....82.....4....91.",
+        );
+        assert!(res_f.is_ok());
+        let f_str = serde_json::to_string(&res_f.unwrap());
+        assert!(f_str.is_ok());
+        let f_data = lz_str::compress_to_base64(&f_str.unwrap());
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(1);
+        assert!((process_fpuzzles_data(37, &Command::Check, &f_data, token, ch_tx).await).is_ok());
+        let response = ch_rx.try_recv();
+        assert!(response.is_ok());
+        assert_eq!(
+            response.unwrap(),
+            Response::Count {
+                nonce: 37,
+                count: 2,
+                in_progress: false,
+            }
+        );
+    }
 }
