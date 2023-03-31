@@ -169,6 +169,8 @@ impl TryFrom<&str> for FPuzzles {
             if c == '.' || c == '0' {
                 continue;
             }
+            #[allow(clippy::cast_possible_truncation)]
+            // If our size doesn't fit in a u32...
             match c.to_digit((size as u32) + 1) {
                 Some(d) => {
                     f.grid[i / size][i % size].value = Some(d);
