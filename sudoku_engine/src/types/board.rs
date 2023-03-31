@@ -434,7 +434,7 @@ impl TryFrom<&FPuzzles> for Board {
         for (r, row) in f.grid.iter().enumerate() {
             for (c, cell) in row.iter().enumerate() {
                 if let Some(v) = cell.value {
-                    ret.assign(r * f.size + c, to_bits(v))?;
+                    ret.assign(r * f.size + c, to_bits(v as usize))?;
                 } else if !cell.given_pencil_marks.is_empty() {
                     for v in 1..=ret.meta.max_val {
                         if !cell.given_pencil_marks.contains(&v) {

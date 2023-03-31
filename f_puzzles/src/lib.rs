@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Cell {
     /// The filled in value in a grid cell.
-    pub value: Option<usize>,
+    pub value: Option<u32>,
 
     #[serde(default)]
     given: bool,
@@ -148,6 +148,42 @@ impl FPuzzles {
     }
 }
 
+impl TryFrom<&str> for FPuzzles {
+    type Error = String;
+
+    fn try_from(repr: &str) -> Result<Self, <Self as TryFrom<&str>>::Error> {
+        #[allow(clippy::cast_precision_loss)]
+        // If our length overflows an f32, nothing later is going to work.
+        #[allow(clippy::cast_sign_loss)]
+        // sqrt is never negative.
+        #[allow(clippy::cast_possible_truncation)]
+        // We check if there's truncation, and return an error.
+        let size = f32::sqrt(repr.len() as f32) as usize;
+        if size * size != repr.len() {
+            return Err("Length of digits isn't right for a square sudoku.".to_string());
+        }
+
+        let mut f = Self::new(size);
+
+        for (i, c) in repr.char_indices() {
+            if c == '.' || c == '0' {
+                continue;
+            }
+            match c.to_digit((size as u32) + 1) {
+                Some(d) => {
+                    f.grid[i / size][i % size].value = Some(d);
+                    f.grid[i / size][i % size].given = true;
+                }
+                None => {
+                    return Err("Invalid digit in string.".to_string());
+                }
+            }
+        }
+
+        Ok(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +195,23 @@ mod tests {
 
         f.grid[0][0].region = Some(1);
         assert!(f.is_irregular());
+    }
+
+    #[test]
+    fn from_string() {
+        let f = FPuzzles::try_from("1...340.0..04321");
+        assert!(f.is_ok());
+    }
+
+    #[test]
+    fn wrong_number_of_digits() {
+        let f = FPuzzles::try_from("12345");
+        assert!(f.is_err());
+    }
+
+    #[test]
+    fn bad_digit() {
+        let f = FPuzzles::try_from("12.......k......");
+        assert!(f.is_err());
     }
 }
