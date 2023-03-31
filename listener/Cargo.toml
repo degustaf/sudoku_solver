@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 f_puzzles = { path = "../f_puzzles" }
+sudoku_engine = { path = "../sudoku_engine" }
 futures-util = "0.3"
 lz-str = "0.2"
 serde = { version = "1.0", features = ["derive"] }

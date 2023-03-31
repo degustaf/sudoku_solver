@@ -1,121 +1,50 @@
 #![warn(missing_docs)]
 
+use crate::types::{Command, Error, Request, Response};
 use f_puzzles::FPuzzles;
-use serde::{Deserialize, Serialize};
-use std::string::FromUtf16Error;
+use sudoku_engine::Board;
 use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TrySendError;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Debug, Deserialize, Serialize)]
-enum Command {
-    #[serde(rename = "solvepath")]
-    SolvePath,
-    #[serde(rename = "step")]
-    Step,
-    #[serde(rename = "solve")]
-    Solve,
-    #[serde(rename = "check")]
-    Check,
-    #[serde(rename = "cancel")]
-    Cancel,
-    #[serde(rename = "count")]
-    Count,
-    #[serde(rename = "truecandidates")]
-    TrueCandidates,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(untagged)]
-enum Request {
-    Command {
-        nonce: usize,
-        command: Command,
-        #[allow(dead_code)]
-        #[serde(rename = "dataType")]
-        data_type: String,
-        data: String,
-    },
-    Cancel {
-        nonce: usize,
-        command: Command,
-    },
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-pub struct LogicalCell {
-    value: usize,
-    candidates: Vec<usize>,
-}
-
-#[derive(Debug, PartialEq, Serialize)]
-#[serde(tag = "type")]
-pub enum Response {
-    #[serde(rename = "cancelled")]
-    Cancelled { nonce: usize },
-    #[serde(rename = "invalid")]
-    Invalid { nonce: usize, message: String },
-    #[serde(rename = "truecandidates")]
-    #[allow(dead_code)]
-    TrueCandidates {
-        nonce: usize,
-        #[serde(rename = "solutionsPerCandidate")]
-        solutions_per_candidate: Vec<usize>,
-    },
-    #[serde(rename = "solved")]
-    #[allow(dead_code)]
-    Solved { nonce: usize, solution: Vec<usize> },
-    #[serde(rename = "count")]
-    #[allow(dead_code)]
-    Count {
-        nonce: usize,
-        count: usize,
-        #[serde(rename = "inProgress")]
-        in_progress: bool,
-    },
-    #[serde(rename = "logical")]
-    #[allow(dead_code)]
-    LogicalResponse {
-        nonce: usize,
-        cells: Vec<LogicalCell>,
-        message: String,
-        #[serde(rename = "isValid")]
-        is_valid: bool,
-    },
-}
-
-impl From<serde_json::Error> for Response {
-    fn from(e: serde_json::Error) -> Self {
-        Response::Invalid {
-            nonce: 0,
-            message: e.to_string(),
+fn check_solutions(
+    nonce: usize,
+    f_puz: &FPuzzles,
+    token: &CancellationToken,
+    ch_tx: &mpsc::Sender<Response>,
+) -> Result<(), Error> {
+    let b = Board::try_from(f_puz)?;
+    let mut solns = b.solutions();
+    for count in 0..2 {
+        if token.is_cancelled() {
+            return Ok(());
+        }
+        if solns.next().is_none() {
+            while let Err(TrySendError::Full(_)) = ch_tx.try_send(Response::Count {
+                nonce,
+                count,
+                in_progress: false,
+            }) {}
+            return Ok(());
         }
     }
-}
 
-#[allow(dead_code)]
-struct Error {
-    msg: String,
-}
-
-impl From<FromUtf16Error> for Error {
-    fn from(e: FromUtf16Error) -> Self {
-        Error { msg: e.to_string() }
-    }
-}
-
-impl From<serde_json::Error> for Error {
-    fn from(e: serde_json::Error) -> Self {
-        Error { msg: e.to_string() }
-    }
+    while let Err(TrySendError::Full(_)) = ch_tx.try_send(Response::Count {
+        nonce,
+        count: 2,
+        in_progress: false,
+    }) {}
+    Ok(())
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn process_fpuzzles_data(
+async fn process_fpuzzles_data(
     nonce: usize,
-    _command: &Command,
+    command: &Command,
     data: &str,
-    _token: CancellationToken,
-) -> Result<Response, Error> {
+    token: CancellationToken,
+    ch_tx: mpsc::Sender<Response>,
+) -> Result<(), Error> {
     let f_data = match lz_str::decompress_from_base64(data) {
         Some(f) => String::from_utf16(&f)?,
         None => {
@@ -124,11 +53,21 @@ fn process_fpuzzles_data(
             });
         }
     };
-    let _f_puz: FPuzzles = serde_json::from_str(&f_data)?;
-    Ok(Response::Invalid {
-        nonce,
-        message: String::new(),
-    })
+    let f_puz: FPuzzles = serde_json::from_str(&f_data)?;
+    match command {
+        Command::Check => {
+            // This should spawn to a new thread where we do parallel CPU bound computations.
+            check_solutions(nonce, &f_puz, &token, &ch_tx)?;
+        }
+        Command::Cancel => {
+            token.cancel();
+            if (ch_tx.send(Response::Cancelled { nonce }).await).is_ok() {};
+        }
+        _ => {
+            todo!();
+        }
+    }
+    Ok(())
 }
 
 pub async fn process_message(msg: &str, token: CancellationToken, ch_tx: mpsc::Sender<Response>) {
@@ -163,19 +102,17 @@ pub async fn process_message(msg: &str, token: CancellationToken, ch_tx: mpsc::S
                 return;
             }
             println!("{command:?}");
-            let _f_data = match process_fpuzzles_data(nonce, &command, &data, token) {
-                Ok(f_data) => f_data,
-                Err(e) => {
-                    if (ch_tx
-                        .send(Response::Invalid {
-                            nonce,
-                            message: e.msg,
-                        })
-                        .await)
-                        .is_ok()
-                    {};
-                    return;
-                }
+            if let Err(e) =
+                process_fpuzzles_data(nonce, &command, &data, token, ch_tx.clone()).await
+            {
+                if (ch_tx
+                    .send(Response::Invalid {
+                        nonce,
+                        message: e.msg,
+                    })
+                    .await)
+                    .is_ok()
+                {};
             };
         }
     }
@@ -222,10 +159,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn bad_n64_data() {
+    #[tokio::test]
+    async fn bad_n64_data() {
         let token = CancellationToken::new();
-        let processed = process_fpuzzles_data(0, &Command::Solve, "000000", token);
+        let (ch_tx, _ch_rx) = mpsc::channel::<Response>(1);
+        let processed = process_fpuzzles_data(0, &Command::Solve, "000000", token, ch_tx).await;
         assert!(processed.is_err());
         let err = processed.unwrap_err();
         assert_eq!(err.msg, "Corrupted N64 encoded data.".to_string());

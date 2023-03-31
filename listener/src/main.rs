@@ -4,8 +4,8 @@
 //! [f-puzzles](https://www.f-puzzles.com) as a frontend.
 
 #![warn(missing_docs)]
+use crate::types::Response;
 use futures_util::{SinkExt, StreamExt, TryFutureExt};
-use requests::Response;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
@@ -14,6 +14,7 @@ use warp::ws::{WebSocket, Ws};
 use warp::{cors, Filter};
 
 mod requests;
+mod types;
 
 /// This function is heavily based on the
 /// [warp example](https://github.com/seanmonstar/warp/blob/master/examples/websockets_chat.rs).

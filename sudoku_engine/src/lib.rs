@@ -4,10 +4,10 @@
 mod types;
 
 use types::board::Bits;
-use types::board::Board;
+pub use types::board::Board;
 use types::board::Contradiction;
 use types::board::Elimination;
-use types::board::SudokuErrors;
+pub use types::board::SudokuErrors;
 
 /// Convert a string of digits into the associated Board.
 ///
@@ -72,13 +72,6 @@ pub fn eliminate(board: &mut Board, idx: usize, value: usize) -> Result<Eliminat
     }
     let v = board.to_bits(value)?;
     Ok(board.eliminate(idx, v)?)
-}
-
-#[allow(dead_code)]
-enum SolutionCount {
-    None,
-    One,
-    Many,
 }
 
 #[cfg(test)]

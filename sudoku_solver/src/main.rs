@@ -1,3 +1,3 @@
+//! A command line utility for solving sudoku.
 fn main() {
-    println!("Hello, world!");
 }

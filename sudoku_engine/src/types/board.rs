@@ -10,6 +10,8 @@ use core::ops::BitAndAssign;
 use core::ops::BitOr;
 use core::ops::Not;
 use f_puzzles::FPuzzles;
+use fmt::Display;
+use std::fmt;
 use std::sync::Arc;
 
 /// Errors for creating and solving sudoku.
@@ -46,6 +48,12 @@ impl From<TryFromIntError> for SudokuErrors {
 impl From<Contradiction> for SudokuErrors {
     fn from(_: Contradiction) -> Self {
         Self::Contradiction
+    }
+}
+
+impl Display for SudokuErrors {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{self:?}")
     }
 }
 
@@ -378,6 +386,8 @@ impl Board {
         self.grid[idx]
     }
 
+    /// An iterator of all possible solutions to the given puzzle.
+    #[must_use]
     pub fn solutions(&self) -> SolutionIterator {
         SolutionIterator::new(self)
     }

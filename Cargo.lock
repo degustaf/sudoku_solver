@@ -340,6 +340,7 @@ dependencies = [
  "lz-str",
  "serde",
  "serde_json",
+ "sudoku_engine",
  "tokio",
  "tokio-stream",
  "tokio-util",
