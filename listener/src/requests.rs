@@ -2,6 +2,7 @@
 
 use crate::types::{Command, Error, Request, Response};
 use f_puzzles::FPuzzles;
+use rayon::spawn;
 use sudoku_engine::Board;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
@@ -12,12 +13,21 @@ fn check_solutions(
     f_puz: &FPuzzles,
     token: &CancellationToken,
     ch_tx: &mpsc::Sender<Response>,
-) -> Result<(), Error> {
-    let b = Board::try_from(f_puz)?;
+) {
+    let b = match Board::try_from(f_puz) {
+        Ok(b) => b,
+        Err(e) => {
+            while let Err(TrySendError::Full(_)) = ch_tx.try_send(Response::Invalid {
+                nonce,
+                message: e.to_string(),
+            }) {}
+            return;
+        }
+    };
     let mut solns = b.solutions();
     for count in 0..2 {
         if token.is_cancelled() {
-            return Ok(());
+            return;
         }
         if solns.next().is_none() {
             while let Err(TrySendError::Full(_)) = ch_tx.try_send(Response::Count {
@@ -25,7 +35,7 @@ fn check_solutions(
                 count,
                 in_progress: false,
             }) {}
-            return Ok(());
+            return;
         }
     }
 
@@ -34,7 +44,6 @@ fn check_solutions(
         count: 2,
         in_progress: false,
     }) {}
-    Ok(())
 }
 
 async fn count_solutions(
@@ -99,8 +108,7 @@ async fn process_fpuzzles_data(
     let f_puz: FPuzzles = serde_json::from_str(&f_data)?;
     match command {
         Command::Check => {
-            // This should spawn to a new thread where we do parallel CPU bound computations.
-            check_solutions(nonce, &f_puz, &token, &ch_tx)?;
+            spawn(move || check_solutions(nonce, &f_puz, &token, &ch_tx));
         }
         Command::Cancel => {
             token.cancel();
@@ -290,7 +298,7 @@ mod tests {
         let f = res_f.unwrap();
         let token = CancellationToken::new();
         let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(1);
-        assert!(check_solutions(42, &f, &token, &ch_tx).is_ok());
+        check_solutions(42, &f, &token, &ch_tx);
         let response = ch_rx.try_recv();
         assert!(response.is_ok());
         assert_eq!(
@@ -302,7 +310,8 @@ mod tests {
             }
         );
         token.cancel();
-        assert!(check_solutions(43, &f, &token, &ch_tx).is_ok());
+        check_solutions(43, &f, &token, &ch_tx);
+        assert_eq!(ch_rx.try_recv(), Err(TryRecvError::Empty));
     }
 
     #[test]
@@ -314,7 +323,7 @@ mod tests {
         let f = res_f.unwrap();
         let token = CancellationToken::new();
         let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(1);
-        assert!(check_solutions(42, &f, &token, &ch_tx).is_ok());
+        check_solutions(42, &f, &token, &ch_tx);
         let response = ch_rx.try_recv();
         assert!(response.is_ok());
         assert_eq!(
@@ -339,8 +348,8 @@ mod tests {
         let token = CancellationToken::new();
         let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(1);
         assert!((process_fpuzzles_data(37, &Command::Check, &f_data, token, ch_tx).await).is_ok());
-        let response = ch_rx.try_recv();
-        assert!(response.is_ok());
+        let response = ch_rx.recv().await;
+        assert!(response.is_some());
         assert_eq!(
             response.unwrap(),
             Response::Count {
