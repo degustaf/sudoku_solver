@@ -11,8 +11,12 @@ use core::ops::BitOr;
 use core::ops::Not;
 use f_puzzles::FPuzzles;
 use fmt::Display;
+use rayon::prelude::*;
 use std::fmt;
 use std::sync::Arc;
+use tokio::sync::mpsc::error::TrySendError;
+use tokio::sync::mpsc::Sender;
+use tokio_util::sync::CancellationToken;
 
 /// Errors for creating and solving sudoku.
 #[derive(Debug, PartialEq)]
@@ -391,6 +395,58 @@ impl Board {
     pub fn solutions(&self) -> SolutionIterator {
         SolutionIterator::new(self)
     }
+
+    fn solution_count_helper(&mut self, token: &CancellationToken, tx: &Sender<usize>) -> usize {
+        if token.is_cancelled() {
+            return 0;
+        }
+        loop {
+            match self.naked_singles() {
+                Ok(Elimination::Eliminated) => {}
+                Ok(Elimination::Same) => {
+                    break;
+                }
+                Err(_) => {
+                    return 0;
+                }
+            }
+        }
+        if self.solved() {
+            return 1;
+        }
+        let Some(idx) = self.next_idx_to_guess() else {
+                return 0;
+            };
+        let values: Vec<usize> = self.get_values(idx).iter_ones().collect();
+        let count = values
+            .par_iter()
+            .fold(
+                || 0,
+                |acc, v| {
+                    let mut board = self.clone();
+                    let bit = board.to_bits(*v).unwrap();
+                    let n = match board.assign(idx, bit) {
+                        Ok(_) => board.solution_count_helper(token, tx),
+                        Err(_) => 0,
+                    };
+                    acc + n
+                },
+            )
+            .sum::<usize>();
+        if count > 500 {
+            while let Err(TrySendError::Full(_)) = tx.try_send(count) {}
+            0
+        } else {
+            count
+        }
+    }
+
+    /// count the number of solutions to a puzzle. A partial count is periodically transmitted
+    /// through the channel `tx`.
+    pub fn solution_count(&mut self, token: &CancellationToken, tx: &Sender<usize>) {
+        let count = self.solution_count_helper(token, tx);
+        while let Err(TrySendError::Full(_)) = tx.try_send(count) {}
+    }
 }
 
 fn regions(f: &FPuzzles) -> Vec<Vec<usize>> {
@@ -462,6 +518,7 @@ mod tests {
 
     use bitvec::bitarr;
     use bitvec::prelude::Lsb0;
+    use tokio::sync::mpsc::channel;
 
     const ONE: Bits = bitarr!(const u32, Lsb0; 0,1);
     const TWO: Bits = bitarr!(const u32, Lsb0; 0,0,1);
@@ -786,5 +843,45 @@ mod tests {
         let b = res_b.unwrap();
         assert_eq!(b.meta.regions[0], vec![0, 1, 2, 3, 9, 10, 11, 18, 19]);
         assert_eq!(b.meta.regions[1], vec![4, 5, 12, 13, 14, 20, 21, 22, 23]);
+    }
+
+    #[test]
+    fn solution_count() {
+        let b = crate::from_string(
+            ".9..7..5....28..........37.2.5.....4...4.5.....6.....9731....2....82.....4....91.",
+        );
+        assert!(b.is_ok());
+        let mut board = b.unwrap();
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = channel::<usize>(1);
+        board.solution_count(&token, &ch_tx);
+        let response = ch_rx.try_recv();
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), 38);
+    }
+
+    #[test]
+    fn solution_count_with_midcount_reporting() {
+        let b = crate::from_string(
+            ".9..7..5.....8..........37.2.5.....4...4.5.....6.....97.1....2....82.....4....91.",
+        );
+        assert!(b.is_ok());
+        let mut board = b.unwrap();
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = channel::<usize>(10);
+        board.solution_count(&token, &ch_tx);
+        let mut count = 0;
+        while let Ok(n) = ch_rx.try_recv() {
+            count += n;
+        }
+        assert_eq!(count, 2889);
+
+        token.cancel();
+        board.solution_count(&token, &ch_tx);
+        let mut count = 0;
+        while let Ok(n) = ch_rx.try_recv() {
+            count += n;
+        }
+        assert_eq!(count, 0);
     }
 }

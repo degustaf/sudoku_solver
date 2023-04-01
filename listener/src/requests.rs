@@ -37,6 +37,49 @@ fn check_solutions(
     Ok(())
 }
 
+async fn count_solutions(
+    nonce: usize,
+    f_puz: &FPuzzles,
+    token: CancellationToken,
+    ch_tx: &mpsc::Sender<Response>,
+) -> Result<(), Error> {
+    let mut b = Board::try_from(f_puz)?;
+    let (engine_tx, mut engine_rx) = mpsc::channel::<usize>(100);
+    let token2 = token.clone();
+    rayon::spawn(move || {
+        b.solution_count(&token2, &engine_tx);
+    });
+    // spawn new thread that consumes engine_tx.
+    let mut count: usize = 0;
+    while let Some(n) = engine_rx.recv().await {
+        if token.is_cancelled() {
+            return Ok(());
+        }
+        count += n;
+        if (ch_tx
+            .send(Response::Count {
+                nonce,
+                count,
+                in_progress: true,
+            })
+            .await)
+            .is_err()
+        {
+            return Ok(());
+        }
+    }
+    if (ch_tx
+        .send(Response::Count {
+            nonce,
+            count,
+            in_progress: false,
+        })
+        .await)
+        .is_err()
+    {}
+    Ok(())
+}
+
 #[allow(clippy::needless_pass_by_value)]
 async fn process_fpuzzles_data(
     nonce: usize,
@@ -62,6 +105,9 @@ async fn process_fpuzzles_data(
         Command::Cancel => {
             token.cancel();
             if (ch_tx.send(Response::Cancelled { nonce }).await).is_ok() {};
+        }
+        Command::Count => {
+            (count_solutions(nonce, &f_puz, token, &ch_tx).await)?;
         }
         _ => {
             todo!();
@@ -124,6 +170,7 @@ mod tests {
 
     use futures_util::StreamExt;
     use serde_json::Value;
+    use tokio::sync::mpsc::error::TryRecvError;
     use tokio_stream::wrappers::ReceiverStream;
 
     #[test]
@@ -299,6 +346,78 @@ mod tests {
             Response::Count {
                 nonce: 37,
                 count: 2,
+                in_progress: false,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_count_solutions() {
+        let res_f = FPuzzles::try_from(
+            ".9..7..5....28..........37.2.5.....4...4.5.....6.....9731....2....82.....4....91.",
+        );
+        assert!(res_f.is_ok());
+        let f = res_f.unwrap();
+        let f_str = serde_json::to_string(&f);
+        assert!(f_str.is_ok());
+        let f_data = lz_str::compress_to_base64(&f_str.unwrap());
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(3);
+        assert!(
+            process_fpuzzles_data(12, &Command::Count, &f_data, token.clone(), ch_tx.clone())
+                .await
+                .is_ok()
+        );
+
+        let response1 = ch_rx.try_recv();
+        assert!(response1.is_ok());
+        assert_eq!(
+            response1.unwrap(),
+            Response::Count {
+                nonce: 12,
+                count: 38,
+                in_progress: true,
+            }
+        );
+
+        let response2 = ch_rx.try_recv();
+        assert!(response2.is_ok());
+        assert_eq!(
+            response2.unwrap(),
+            Response::Count {
+                nonce: 12,
+                count: 38,
+                in_progress: false,
+            }
+        );
+
+        token.cancel();
+        assert!(count_solutions(13, &f, token, &ch_tx).await.is_ok());
+        let response3 = ch_rx.try_recv();
+        assert!(response3.is_err());
+        assert_eq!(response3.unwrap_err(), TryRecvError::Empty);
+    }
+
+    #[tokio::test]
+    async fn test_count_solutions2() {
+        let res_f = FPuzzles::try_from(
+            ".9..7..5.....8..........37.2.5.....4...4.5.....6.3...97.1....2....82.....4....91.",
+        );
+        assert!(res_f.is_ok());
+        let f = res_f.unwrap();
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(3);
+        assert!(count_solutions(12, &f, token, &ch_tx).await.is_ok());
+
+        let _response1 = ch_rx.try_recv();
+        let _response2 = ch_rx.try_recv();
+        let response3 = ch_rx.try_recv();
+        assert!(response3.is_ok());
+        assert_eq!(
+            response3.unwrap(),
+            Response::Count {
+                nonce: 12,
+                count: 684,
                 in_progress: false,
             }
         );
