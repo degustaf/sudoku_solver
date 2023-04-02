@@ -51,18 +51,30 @@ async fn count_solutions(
     f_puz: &FPuzzles,
     token: CancellationToken,
     ch_tx: &mpsc::Sender<Response>,
-) -> Result<(), Error> {
-    let mut b = Board::try_from(f_puz)?;
+) {
+    let mut b = match Board::try_from(f_puz) {
+        Ok(b) => b,
+        Err(e) => {
+            if (ch_tx
+                .send(Response::Invalid {
+                    nonce,
+                    message: e.to_string(),
+                })
+                .await)
+                .is_ok()
+            {};
+            return;
+        }
+    };
     let (engine_tx, mut engine_rx) = mpsc::channel::<usize>(100);
     let token2 = token.clone();
     rayon::spawn(move || {
         b.solution_count(&token2, &engine_tx);
     });
-    // spawn new thread that consumes engine_tx.
     let mut count: usize = 0;
     while let Some(n) = engine_rx.recv().await {
         if token.is_cancelled() {
-            return Ok(());
+            return;
         }
         count += n;
         if (ch_tx
@@ -74,7 +86,7 @@ async fn count_solutions(
             .await)
             .is_err()
         {
-            return Ok(());
+            return;
         }
     }
     if (ch_tx
@@ -86,7 +98,6 @@ async fn count_solutions(
         .await)
         .is_err()
     {}
-    Ok(())
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -115,7 +126,7 @@ async fn process_fpuzzles_data(
             if (ch_tx.send(Response::Cancelled { nonce }).await).is_ok() {};
         }
         Command::Count => {
-            (count_solutions(nonce, &f_puz, token, &ch_tx).await)?;
+            count_solutions(nonce, &f_puz, token, &ch_tx).await;
         }
         _ => {
             todo!();
@@ -401,7 +412,7 @@ mod tests {
         );
 
         token.cancel();
-        assert!(count_solutions(13, &f, token, &ch_tx).await.is_ok());
+        count_solutions(13, &f, token, &ch_tx).await;
         let response3 = ch_rx.try_recv();
         assert!(response3.is_err());
         assert_eq!(response3.unwrap_err(), TryRecvError::Empty);
@@ -416,7 +427,7 @@ mod tests {
         let f = res_f.unwrap();
         let token = CancellationToken::new();
         let (ch_tx, mut ch_rx) = mpsc::channel::<Response>(3);
-        assert!(count_solutions(12, &f, token, &ch_tx).await.is_ok());
+        count_solutions(12, &f, token, &ch_tx).await;
 
         let _response1 = ch_rx.try_recv();
         let _response2 = ch_rx.try_recv();

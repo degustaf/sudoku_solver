@@ -38,8 +38,9 @@ async fn handler(ws: TcpStream) {
         }
     });
 
+    let mut token = CancellationToken::new();
     while let Some(result) = ws_rcv.next().await {
-        let token = CancellationToken::new();
+        token.cancel();
         let msg = match result {
             Ok(msg) => match msg {
                 Message::Text(msg) => msg,
@@ -58,7 +59,8 @@ async fn handler(ws: TcpStream) {
             }
         };
 
-        requests::process_message(&msg, token, ch_tx.clone()).await;
+        token = CancellationToken::new();
+        requests::process_message(&msg, token.clone(), ch_tx.clone()).await;
     }
 }
 
