@@ -41,19 +41,17 @@ async fn handler(ws: TcpStream) {
     while let Some(result) = ws_rcv.next().await {
         let token = CancellationToken::new();
         let msg = match result {
-            Ok(msg) => {
-                match msg {
-                    Message::Text(msg) => msg,
-                    Message::Close(_) => {
-                        eprintln!("Connection closed.");
-                        break;
-                    }
-                    _ => {
-                        eprintln!("Unable to process binary message from websocket: {msg:?}");
-                        continue;
-                    }
+            Ok(msg) => match msg {
+                Message::Text(msg) => msg,
+                Message::Close(_) => {
+                    eprintln!("Connection closed.");
+                    break;
                 }
-            }
+                _ => {
+                    eprintln!("Unable to process binary message from websocket: {msg:?}");
+                    continue;
+                }
+            },
             Err(e) => {
                 eprintln!("websocket error: {e}");
                 continue;
