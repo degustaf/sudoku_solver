@@ -418,6 +418,7 @@ mod tests {
         assert_eq!(response3.unwrap_err(), TryRecvError::Empty);
     }
 
+    #[cfg_attr(tarpaulin, ignore)]
     #[tokio::test]
     async fn test_count_solutions2() {
         let res_f = FPuzzles::try_from(

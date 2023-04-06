@@ -1,10 +1,6 @@
 /// Implementation of the solution iterator. This iterator is used to generate solutions to given
 /// puzzle. This provides the core engine used to find **a** solution, and to count solutions.
 use crate::Board;
-use crate::Elimination;
-// use crate::SolutionCount;
-use crate::Contradiction;
-// use crate::types::board;
 
 /// An iter that will generate solutions to the puzzle.
 pub struct SolutionIterator {
@@ -12,22 +8,21 @@ pub struct SolutionIterator {
 }
 
 impl SolutionIterator {
-    fn solve_helper(board: &mut Board) -> Result<(), Contradiction> {
-        // let mut status = Elimination::Same;
-        while board.naked_singles()? == Elimination::Eliminated {
-            // status = Elimination::Eliminated;
-        }
-
-        Ok(())
-    }
-
     pub(crate) fn new(b: &Board) -> Self {
         let mut board = b.clone();
 
-        match Self::solve_helper(&mut board) {
+        match board.deduce() {
             Err(_) => Self { stack: Vec::new() },
             Ok(_) => match board.next_idx_to_guess() {
-                None => Self { stack: Vec::new() },
+                None => {
+                    if board.solved() {
+                        Self {
+                            stack: vec![(board, 0, Vec::new())],
+                        }
+                    } else {
+                        Self { stack: Vec::new() }
+                    }
+                }
                 Some(next_idx) => {
                     let values: Vec<usize> = board.get_values(next_idx).iter_ones().collect();
                     Self {
@@ -62,7 +57,7 @@ impl std::iter::Iterator for SolutionIterator {
                     }
                 }
             }
-            if Self::solve_helper(&mut board).is_err() {
+            if board.deduce().is_err() {
                 continue;
             }
             if board.solved() {

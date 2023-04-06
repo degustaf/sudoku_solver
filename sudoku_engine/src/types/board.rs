@@ -351,7 +351,9 @@ impl Board {
     }
 
     /// Search the grid for places where there is only a single candidate.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    /// This will throw an error if searching for naked singles leads to a contradiction.
     pub fn naked_singles(&mut self) -> Result<Elimination, Contradiction> {
         let mut ret = Elimination::Same;
 
@@ -367,6 +369,53 @@ impl Board {
             ret = ret.combine(self.assign(i, d)?);
         }
 
+        Ok(ret)
+    }
+
+    fn hidden_singles_helper<T: Iterator<Item = usize>>(
+        &mut self,
+        unit: T,
+    ) -> Result<Elimination, Contradiction> {
+        let mut ret = Elimination::Same;
+        let cells: Vec<(usize, Bits)> = unit.map(|idx| (idx, self.grid[idx])).collect();
+        for i in 1..=self.meta.max_val {
+            let mut v = Bits::ZERO;
+            v.set(i, true);
+            let mut f = cells.iter().filter(|(_, x)| (*x).bitand(v) == v);
+            if let Some((idx, _)) = f.next() {
+                if f.next().is_none() {
+                    ret = ret.combine(self.assign(*idx, v)?);
+                }
+            } else {
+                return Err(Contradiction(()));
+            }
+        }
+
+        Ok(ret)
+    }
+
+    /// Locate cells that are the only place for a digit to go in a row, column, or region.
+    ///
+    /// # Errors
+    /// This will throw an error if searching for hidden singles leads to a contradiction.
+    pub fn hidden_singles(&mut self) -> Result<Elimination, Contradiction> {
+        let mut ret = Elimination::Same;
+        // rows
+        for r in 0..self.meta.size {
+            ret = ret
+                .combine(self.hidden_singles_helper(r * self.meta.size..(r + 1) * self.meta.size)?);
+        }
+        // columns
+        for c in 0..self.meta.size {
+            ret = ret.combine(self.hidden_singles_helper(
+                (c..self.meta.size * self.meta.size).step_by(self.meta.size),
+            )?);
+        }
+        // regions
+        let regions = self.meta.regions.clone();
+        for reg in &regions {
+            ret = ret.combine(self.hidden_singles_helper(reg.iter().copied())?);
+        }
         Ok(ret)
     }
 
@@ -390,6 +439,17 @@ impl Board {
         self.grid[idx]
     }
 
+    pub(crate) fn deduce(&mut self) -> Result<(), Contradiction> {
+        loop {
+            while self.naked_singles()? == Elimination::Eliminated {}
+            if self.hidden_singles()? == Elimination::Eliminated {
+                continue;
+            }
+            break;
+        }
+        Ok(())
+    }
+
     /// An iterator of all possible solutions to the given puzzle.
     #[must_use]
     pub fn solutions(&self) -> SolutionIterator {
@@ -400,16 +460,8 @@ impl Board {
         if token.is_cancelled() {
             return 0;
         }
-        loop {
-            match self.naked_singles() {
-                Ok(Elimination::Eliminated) => {}
-                Ok(Elimination::Same) => {
-                    break;
-                }
-                Err(_) => {
-                    return 0;
-                }
-            }
+        if self.deduce().is_err() {
+            return 0;
         }
         if self.solved() {
             return 1;
@@ -854,16 +906,19 @@ mod tests {
         let mut board = b.unwrap();
         let token = CancellationToken::new();
         let (ch_tx, mut ch_rx) = channel::<usize>(1);
-        board.solution_count(&token, &ch_tx);
+        rayon::scope(move |_| {
+            board.solution_count(&token, &ch_tx);
+        });
         let response = ch_rx.try_recv();
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), 38);
     }
 
+    #[cfg_attr(tarpaulin, ignore)]
     #[test]
     fn solution_count_with_midcount_reporting() {
         let b = crate::from_string(
-            ".9..7..5.....8..........37.2.5.....4...4.5.....6.....97.1....2....82.....4....91.",
+            "19..7..5.....8..........37.2.5.....4...4.5.....6.....97.1....2....82.....4....91.",
         );
         assert!(b.is_ok());
         let mut board = b.unwrap();
@@ -874,8 +929,18 @@ mod tests {
         while let Ok(n) = ch_rx.try_recv() {
             count += n;
         }
-        assert_eq!(count, 2889);
+        assert_eq!(count, 753);
+    }
 
+    #[test]
+    fn solution_count_with_cancellation() {
+        let b = crate::from_string(
+            "19..7..5.....8..........37.2.5.....4...4.5.....6.....97.1....2....82.....4....91.",
+        );
+        assert!(b.is_ok());
+        let mut board = b.unwrap();
+        let token = CancellationToken::new();
+        let (ch_tx, mut ch_rx) = channel::<usize>(10);
         token.cancel();
         board.solution_count(&token, &ch_tx);
         let mut count = 0;
@@ -883,5 +948,16 @@ mod tests {
             count += n;
         }
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_deduce() {
+        let b = crate::from_string(
+            "19..7..5....28..........37.2.5.....4...4.5.....6.....9731....2....82.....4....91.",
+        );
+        let mut board = b.unwrap();
+        let res = board.deduce();
+        eprintln!("{board:?}");
+        assert!(res.is_ok());
     }
 }

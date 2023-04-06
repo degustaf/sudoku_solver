@@ -5,7 +5,6 @@ mod types;
 
 use types::board::Bits;
 pub use types::board::Board;
-use types::board::Contradiction;
 use types::board::Elimination;
 pub use types::board::SudokuErrors;
 
