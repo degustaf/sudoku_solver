@@ -423,10 +423,32 @@
 <a href="#423" id="423">423</a>
 <a href="#424" id="424">424</a>
 <a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
 </pre><pre class="rust"><code><span class="attr">#![warn(missing_docs)]
 
 </span><span class="kw">use </span><span class="kw">crate</span>::types::{Command, Error, Request, Response};
 <span class="kw">use </span>f_puzzles::FPuzzles;
+<span class="kw">use </span>rayon::spawn;
 <span class="kw">use </span>sudoku_engine::Board;
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::sync::mpsc::error::TrySendError;
@@ -437,12 +459,21 @@
     f_puz: <span class="kw-2">&amp;</span>FPuzzles,
     token: <span class="kw-2">&amp;</span>CancellationToken,
     ch_tx: <span class="kw-2">&amp;</span>mpsc::Sender&lt;Response&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-    <span class="kw">let </span>b = Board::try_from(f_puz)<span class="question-mark">?</span>;
+) {
+    <span class="kw">let </span>b = <span class="kw">match </span>Board::try_from(f_puz) {
+        <span class="prelude-val">Ok</span>(b) =&gt; b,
+        <span class="prelude-val">Err</span>(e) =&gt; {
+            <span class="kw">while let </span><span class="prelude-val">Err</span>(TrySendError::Full(<span class="kw">_</span>)) = ch_tx.try_send(Response::Invalid {
+                nonce,
+                message: e.to_string(),
+            }) {}
+            <span class="kw">return</span>;
+        }
+    };
     <span class="kw">let </span><span class="kw-2">mut </span>solns = b.solutions();
     <span class="kw">for </span>count <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
         <span class="kw">if </span>token.is_cancelled() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            <span class="kw">return</span>;
         }
         <span class="kw">if </span>solns.next().is_none() {
             <span class="kw">while let </span><span class="prelude-val">Err</span>(TrySendError::Full(<span class="kw">_</span>)) = ch_tx.try_send(Response::Count {
@@ -450,7 +481,7 @@
                 count,
                 in_progress: <span class="bool-val">false</span>,
             }) {}
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            <span class="kw">return</span>;
         }
     }
 
@@ -459,7 +490,6 @@
         count: <span class="number">2</span>,
         in_progress: <span class="bool-val">false</span>,
     }) {}
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="kw">async fn </span>count_solutions(
@@ -467,18 +497,30 @@
     f_puz: <span class="kw-2">&amp;</span>FPuzzles,
     token: CancellationToken,
     ch_tx: <span class="kw-2">&amp;</span>mpsc::Sender&lt;Response&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>b = Board::try_from(f_puz)<span class="question-mark">?</span>;
+) {
+    <span class="kw">let </span><span class="kw-2">mut </span>b = <span class="kw">match </span>Board::try_from(f_puz) {
+        <span class="prelude-val">Ok</span>(b) =&gt; b,
+        <span class="prelude-val">Err</span>(e) =&gt; {
+            <span class="kw">if </span>(ch_tx
+                .send(Response::Invalid {
+                    nonce,
+                    message: e.to_string(),
+                })
+                .<span class="kw">await</span>)
+                .is_ok()
+            {};
+            <span class="kw">return</span>;
+        }
+    };
     <span class="kw">let </span>(engine_tx, <span class="kw-2">mut </span>engine_rx) = mpsc::channel::&lt;usize&gt;(<span class="number">100</span>);
     <span class="kw">let </span>token2 = token.clone();
     rayon::spawn(<span class="kw">move </span>|| {
         b.solution_count(<span class="kw-2">&amp;</span>token2, <span class="kw-2">&amp;</span>engine_tx);
     });
-    <span class="comment">// spawn new thread that consumes engine_tx.
-    </span><span class="kw">let </span><span class="kw-2">mut </span>count: usize = <span class="number">0</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>count: usize = <span class="number">0</span>;
     <span class="kw">while let </span><span class="prelude-val">Some</span>(n) = engine_rx.recv().<span class="kw">await </span>{
         <span class="kw">if </span>token.is_cancelled() {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            <span class="kw">return</span>;
         }
         count += n;
         <span class="kw">if </span>(ch_tx
@@ -490,7 +532,7 @@
             .<span class="kw">await</span>)
             .is_err()
         {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            <span class="kw">return</span>;
         }
     }
     <span class="kw">if </span>(ch_tx
@@ -502,7 +544,6 @@
         .<span class="kw">await</span>)
         .is_err()
     {}
-    <span class="prelude-val">Ok</span>(())
 }
 
 <span class="attr">#[allow(clippy::needless_pass_by_value)]
@@ -524,15 +565,14 @@
     <span class="kw">let </span>f_puz: FPuzzles = serde_json::from_str(<span class="kw-2">&amp;</span>f_data)<span class="question-mark">?</span>;
     <span class="kw">match </span>command {
         Command::Check =&gt; {
-            <span class="comment">// This should spawn to a new thread where we do parallel CPU bound computations.
-            </span>check_solutions(nonce, <span class="kw-2">&amp;</span>f_puz, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx)<span class="question-mark">?</span>;
+            spawn(<span class="kw">move </span>|| check_solutions(nonce, <span class="kw-2">&amp;</span>f_puz, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx));
         }
         Command::Cancel =&gt; {
             token.cancel();
             <span class="kw">if </span>(ch_tx.send(Response::Cancelled { nonce }).<span class="kw">await</span>).is_ok() {};
         }
         Command::Count =&gt; {
-            (count_solutions(nonce, <span class="kw-2">&amp;</span>f_puz, token, <span class="kw-2">&amp;</span>ch_tx).<span class="kw">await</span>)<span class="question-mark">?</span>;
+            count_solutions(nonce, <span class="kw-2">&amp;</span>f_puz, token, <span class="kw-2">&amp;</span>ch_tx).<span class="kw">await</span>;
         }
         <span class="kw">_ </span>=&gt; {
             <span class="macro">todo!</span>();
@@ -715,7 +755,7 @@
         <span class="kw">let </span>f = res_f.unwrap();
         <span class="kw">let </span>token = CancellationToken::new();
         <span class="kw">let </span>(ch_tx, <span class="kw-2">mut </span>ch_rx) = mpsc::channel::&lt;Response&gt;(<span class="number">1</span>);
-        <span class="macro">assert!</span>(check_solutions(<span class="number">42</span>, <span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx).is_ok());
+        check_solutions(<span class="number">42</span>, <span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx);
         <span class="kw">let </span>response = ch_rx.try_recv();
         <span class="macro">assert!</span>(response.is_ok());
         <span class="macro">assert_eq!</span>(
@@ -727,7 +767,8 @@
             }
         );
         token.cancel();
-        <span class="macro">assert!</span>(check_solutions(<span class="number">43</span>, <span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx).is_ok());
+        check_solutions(<span class="number">43</span>, <span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx);
+        <span class="macro">assert_eq!</span>(ch_rx.try_recv(), <span class="prelude-val">Err</span>(TryRecvError::Empty));
     }
 
     <span class="attr">#[test]
@@ -739,7 +780,7 @@
         <span class="kw">let </span>f = res_f.unwrap();
         <span class="kw">let </span>token = CancellationToken::new();
         <span class="kw">let </span>(ch_tx, <span class="kw-2">mut </span>ch_rx) = mpsc::channel::&lt;Response&gt;(<span class="number">1</span>);
-        <span class="macro">assert!</span>(check_solutions(<span class="number">42</span>, <span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx).is_ok());
+        check_solutions(<span class="number">42</span>, <span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>token, <span class="kw-2">&amp;</span>ch_tx);
         <span class="kw">let </span>response = ch_rx.try_recv();
         <span class="macro">assert!</span>(response.is_ok());
         <span class="macro">assert_eq!</span>(
@@ -764,8 +805,8 @@
         <span class="kw">let </span>token = CancellationToken::new();
         <span class="kw">let </span>(ch_tx, <span class="kw-2">mut </span>ch_rx) = mpsc::channel::&lt;Response&gt;(<span class="number">1</span>);
         <span class="macro">assert!</span>((process_fpuzzles_data(<span class="number">37</span>, <span class="kw-2">&amp;</span>Command::Check, <span class="kw-2">&amp;</span>f_data, token, ch_tx).<span class="kw">await</span>).is_ok());
-        <span class="kw">let </span>response = ch_rx.try_recv();
-        <span class="macro">assert!</span>(response.is_ok());
+        <span class="kw">let </span>response = ch_rx.recv().<span class="kw">await</span>;
+        <span class="macro">assert!</span>(response.is_some());
         <span class="macro">assert_eq!</span>(
             response.unwrap(),
             Response::Count {
@@ -817,13 +858,14 @@
         );
 
         token.cancel();
-        <span class="macro">assert!</span>(count_solutions(<span class="number">13</span>, <span class="kw-2">&amp;</span>f, token, <span class="kw-2">&amp;</span>ch_tx).<span class="kw">await</span>.is_ok());
+        count_solutions(<span class="number">13</span>, <span class="kw-2">&amp;</span>f, token, <span class="kw-2">&amp;</span>ch_tx).<span class="kw">await</span>;
         <span class="kw">let </span>response3 = ch_rx.try_recv();
         <span class="macro">assert!</span>(response3.is_err());
         <span class="macro">assert_eq!</span>(response3.unwrap_err(), TryRecvError::Empty);
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[cfg_attr(tarpaulin, ignore)]
+    #[tokio::test]
     </span><span class="kw">async fn </span>test_count_solutions2() {
         <span class="kw">let </span>res_f = FPuzzles::try_from(
             <span class="string">&quot;.9..7..5.....8..........37.2.5.....4...4.5.....6.3...97.1....2....82.....4....91.&quot;</span>,
@@ -832,7 +874,7 @@
         <span class="kw">let </span>f = res_f.unwrap();
         <span class="kw">let </span>token = CancellationToken::new();
         <span class="kw">let </span>(ch_tx, <span class="kw-2">mut </span>ch_rx) = mpsc::channel::&lt;Response&gt;(<span class="number">3</span>);
-        <span class="macro">assert!</span>(count_solutions(<span class="number">12</span>, <span class="kw-2">&amp;</span>f, token, <span class="kw-2">&amp;</span>ch_tx).<span class="kw">await</span>.is_ok());
+        count_solutions(<span class="number">12</span>, <span class="kw-2">&amp;</span>f, token, <span class="kw-2">&amp;</span>ch_tx).<span class="kw">await</span>;
 
         <span class="kw">let </span>_response1 = ch_rx.try_recv();
         <span class="kw">let </span>_response2 = ch_rx.try_recv();

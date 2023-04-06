@@ -59,7 +59,7 @@ along with the passed message. Otherwise, the message is queued and Ok(()) is re
 <p>This function guarantees that the close frame will be queued.
 There is no need to call it again. Calling this function is
 the same as calling <code>write_message(Message::Close(..))</code>.</p>
-<p>After queing the close frame you should continue calling <code>read_message</code> or
+<p>After queuing the close frame you should continue calling <code>read_message</code> or
 <code>write_pending</code> to drive the close handshake to completion.</p>
 <p>The websocket RFC defines that the underlying connection should be closed
 by the server. Tungstenite takes care of this asymmetry for you.</p>

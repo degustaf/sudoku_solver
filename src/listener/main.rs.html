@@ -70,6 +70,9 @@
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
 </pre><pre class="rust"><code><span class="doccomment">//! A websocket server that provides server-side sudoku solver functionality.
 //! This has the goal of being a drop-in replacement for Rangsk&#39;s
 //! [`SudokuSolver`](https://github.com/dclamage/SudokuSolver) using
@@ -78,21 +81,21 @@
 </span><span class="attr">#![warn(missing_docs)]
 </span><span class="kw">use </span><span class="kw">crate</span>::types::Response;
 <span class="kw">use </span>futures_util::{SinkExt, StreamExt, TryFutureExt};
+<span class="kw">use </span>tokio::net::{TcpListener, TcpStream};
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio_stream::wrappers::ReceiverStream;
 <span class="kw">use </span>tokio_util::sync::CancellationToken;
-<span class="kw">use </span>warp::filters::ws::Message;
-<span class="kw">use </span>warp::ws::{WebSocket, Ws};
-<span class="kw">use </span>warp::{cors, Filter};
+<span class="kw">use </span>tungstenite::protocol::Message;
 
 <span class="kw">mod </span>requests;
 <span class="kw">mod </span>types;
 
-<span class="doccomment">/// This function is heavily based on the
-/// [warp example](https://github.com/seanmonstar/warp/blob/master/examples/websockets_chat.rs).
-</span><span class="kw">async fn </span>handler(ws: WebSocket) {
+<span class="kw">async fn </span>handler(ws: TcpStream) {
     <span class="macro">println!</span>(<span class="string">&quot;Connection established.&quot;</span>);
-    <span class="kw">let </span>(<span class="kw-2">mut </span>ws_tx, <span class="kw-2">mut </span>ws_rcv) = ws.split();
+    <span class="kw">let </span>ws_stream = tokio_tungstenite::accept_async(ws)
+        .<span class="kw">await
+        </span>.expect(<span class="string">&quot;Error during the websocket handshake occurred&quot;</span>);
+    <span class="kw">let </span>(<span class="kw-2">mut </span>ws_tx, <span class="kw-2">mut </span>ws_rcv) = ws_stream.split();
 
     <span class="kw">let </span>(ch_tx, ch_rx) = mpsc::channel::&lt;Response&gt;(<span class="number">100</span>); <span class="comment">// I would be very surprised if we get anywhere close to this.
     </span><span class="kw">let </span><span class="kw-2">mut </span>ch_rx = ReceiverStream::new(ch_rx);
@@ -110,37 +113,40 @@
         }
     });
 
+    <span class="kw">let </span><span class="kw-2">mut </span>token = CancellationToken::new();
     <span class="kw">while let </span><span class="prelude-val">Some</span>(result) = ws_rcv.next().<span class="kw">await </span>{
-        <span class="kw">let </span>token = CancellationToken::new();
+        token.cancel();
         <span class="kw">let </span>msg = <span class="kw">match </span>result {
-            <span class="prelude-val">Ok</span>(msg) =&gt; {
-                <span class="kw">if </span>msg.is_close() {
+            <span class="prelude-val">Ok</span>(msg) =&gt; <span class="kw">match </span>msg {
+                Message::Text(msg) =&gt; msg,
+                Message::Close(<span class="kw">_</span>) =&gt; {
                     <span class="macro">eprintln!</span>(<span class="string">&quot;Connection closed.&quot;</span>);
                     <span class="kw">break</span>;
-                } <span class="kw">else if let </span><span class="prelude-val">Ok</span>(msg) = msg.to_str() {
-                    String::from(msg)
-                } <span class="kw">else </span>{
+                }
+                <span class="kw">_ </span>=&gt; {
                     <span class="macro">eprintln!</span>(<span class="string">&quot;Unable to process binary message from websocket: {msg:?}&quot;</span>);
                     <span class="kw">continue</span>;
                 }
-            }
+            },
             <span class="prelude-val">Err</span>(e) =&gt; {
                 <span class="macro">eprintln!</span>(<span class="string">&quot;websocket error: {e}&quot;</span>);
                 <span class="kw">continue</span>;
             }
         };
 
-        requests::process_message(<span class="kw-2">&amp;</span>msg, token, ch_tx.clone()).<span class="kw">await</span>;
+        token = CancellationToken::new();
+        requests::process_message(<span class="kw-2">&amp;</span>msg, token.clone(), ch_tx.clone()).<span class="kw">await</span>;
     }
 }
 
 <span class="attr">#[tokio::main(flavor = <span class="string">&quot;current_thread&quot;</span>)]
 </span><span class="kw">async fn </span>main() {
-    <span class="kw">let </span>route = warp::path::end()
-        .and(warp::ws())
-        .map(|ws: Ws| ws.on_upgrade(handler))
-        .with(cors().allow_any_origin());
-    warp::serve(route).run(([<span class="number">127</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>], <span class="number">4545</span>)).<span class="kw">await</span>;
+    <span class="kw">let </span>addr = <span class="string">&quot;127.0.0.1:4545&quot;</span>;
+    <span class="kw">let </span>listener = TcpListener::bind(<span class="kw-2">&amp;</span>addr).<span class="kw">await</span>.expect(<span class="string">&quot;Can&#39;t listen&quot;</span>);
+
+    <span class="kw">while let </span><span class="prelude-val">Ok</span>((stream, <span class="kw">_</span>)) = listener.accept().<span class="kw">await </span>{
+        tokio::spawn(handler(stream));
+    }
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="listener" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
