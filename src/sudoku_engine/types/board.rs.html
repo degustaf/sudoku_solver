@@ -961,6 +961,91 @@
 <a href="#961" id="961">961</a>
 <a href="#962" id="962">962</a>
 <a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Types for interacting with a sudoku puzzle.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -970,10 +1055,10 @@
 <span class="kw">use </span>core::num::TryFromIntError;
 <span class="kw">use </span>core::ops::BitAnd;
 <span class="kw">use </span>core::ops::BitAndAssign;
-<span class="kw">use </span>core::ops::BitOr;
 <span class="kw">use </span>core::ops::Not;
 <span class="kw">use </span>f_puzzles::FPuzzles;
 <span class="kw">use </span>fmt::Display;
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>rayon::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -1038,14 +1123,22 @@
     </span>Same,
 }
 
-<span class="kw">impl </span>Elimination {
-    <span class="doccomment">/// Provides a way of combining elimination results that properly propogate the current state
-    /// of eliminations.
-    </span><span class="kw">fn </span>combine(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>BitAnd&lt;Elimination&gt; <span class="kw">for </span>Elimination {
+    <span class="kw">type </span>Output = Elimination;
+
+    <span class="kw">fn </span>bitand(<span class="self">self</span>, rhs: Elimination) -&gt; <span class="self">Self</span>::Output {
         <span class="kw">if </span><span class="self">self </span>== <span class="self">Self</span>::Eliminated {
             <span class="self">Self</span>::Eliminated
         } <span class="kw">else </span>{
             rhs
+        }
+    }
+}
+
+<span class="kw">impl </span>BitAndAssign <span class="kw">for </span>Elimination {
+    <span class="kw">fn </span>bitand_assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rhs: <span class="self">Self</span>) {
+        <span class="kw">if </span><span class="kw-2">*</span><span class="self">self </span>!= <span class="self">Self</span>::Eliminated {
+            <span class="kw-2">*</span><span class="self">self </span>= rhs;
         }
     }
 }
@@ -1179,7 +1272,7 @@
 
         <span class="kw">for </span>(i, o) <span class="kw">in </span>digits.iter().enumerate() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(d) = o {
-                <span class="kw">if </span>!b.grid[i].bitand(d).any() {
+                <span class="kw">if </span>!(b.grid[i] &amp; d).any() {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(SudokuErrors::Contradiction);
                 }
                 b.assign(i, <span class="kw-2">*</span>d)<span class="question-mark">?</span>;
@@ -1222,7 +1315,7 @@
     </span><span class="attr">#[must_use]
     </span><span class="kw">pub fn </span>possible_value(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: usize, value: Bits) -&gt; bool {
         <span class="macro">debug_assert!</span>(idx &lt; <span class="self">self</span>.len());
-        <span class="self">self</span>.grid[idx].bitand(value).any()
+        (<span class="self">self</span>.grid[idx] &amp; value).any()
     }
 
     <span class="doccomment">/// assigns `value` into the grid at `idx`.
@@ -1240,12 +1333,12 @@
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>assign(<span class="kw-2">&amp;mut </span><span class="self">self</span>, idx: usize, value: Bits) -&gt; <span class="prelude-ty">Result</span>&lt;Elimination, Contradiction&gt; {
         <span class="macro">debug_assert_eq!</span>(value.count_ones(), <span class="number">1</span>);
         <span class="macro">debug_assert!</span>(idx &lt; <span class="self">self</span>.len());
-        <span class="macro">debug_assert_eq!</span>(<span class="self">self</span>.grid[idx].bitand(value), value);
+        <span class="macro">debug_assert_eq!</span>(<span class="self">self</span>.grid[idx] &amp; value, value);
 
         <span class="kw">if </span>!<span class="self">self</span>.solved_digits[idx] {
             <span class="self">self</span>.grid[idx] = value;
             <span class="self">self</span>.solved_digits.set(idx, <span class="bool-val">true</span>);
-            <span class="self">self</span>.used_digits = <span class="self">self</span>.used_digits.bitor(value);
+            <span class="self">self</span>.used_digits |= value;
             <span class="kw">if </span><span class="self">self</span>.used_digits.count_ones() &gt; <span class="self">self</span>.meta.size {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Contradiction(()));
             }
@@ -1256,20 +1349,20 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>ret = Elimination::Same;
         <span class="kw">for </span>i <span class="kw">in </span>(row..(row + <span class="self">self</span>.meta.size)).filter(<span class="kw">move </span>|x| <span class="kw-2">*</span>x != idx) {
-            ret = ret.combine(<span class="self">self</span>.eliminate(i, value)<span class="question-mark">?</span>);
+            ret &amp;= <span class="self">self</span>.eliminate(i, value)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>i <span class="kw">in </span>(column..(<span class="self">self</span>.meta.size * <span class="self">self</span>.meta.size))
             .step_by(<span class="self">self</span>.meta.size)
             .filter(<span class="kw">move </span>|x| <span class="kw-2">*</span>x != idx)
         {
-            ret = ret.combine(<span class="self">self</span>.eliminate(i, value)<span class="question-mark">?</span>);
+            ret &amp;= <span class="self">self</span>.eliminate(i, value)<span class="question-mark">?</span>;
         }
 
         <span class="kw">for </span>region <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.meta.regions {
             <span class="kw">if </span>region.contains(<span class="kw-2">&amp;</span>idx) {
                 <span class="kw">for </span>cell <span class="kw">in </span>region.clone().iter().filter(<span class="kw">move </span>|x| <span class="kw-2">**</span>x != idx) {
-                    ret = ret.combine(<span class="self">self</span>.eliminate(<span class="kw-2">*</span>cell, value)<span class="question-mark">?</span>);
+                    ret &amp;= <span class="self">self</span>.eliminate(<span class="kw-2">*</span>cell, value)<span class="question-mark">?</span>;
                 }
                 <span class="kw">break</span>;
             }
@@ -1295,11 +1388,11 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Elimination, Contradiction&gt; {
         <span class="macro">debug_assert!</span>(idx &lt;= <span class="self">self</span>.len());
 
-        <span class="kw">if </span>!<span class="self">self</span>.grid[idx].bitand(value).any() {
+        <span class="kw">if </span>!(<span class="self">self</span>.grid[idx] &amp; value).any() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(Elimination::Same);
         }
 
-        <span class="self">self</span>.grid[idx].bitand_assign(value.not());
+        <span class="self">self</span>.grid[idx] &amp;= value.not();
         <span class="kw">if </span><span class="self">self</span>.grid[idx] == Bits::ZERO {
             <span class="prelude-val">Err</span>(Contradiction(()))
         } <span class="kw">else </span>{
@@ -1329,7 +1422,7 @@
             .collect();
 
         <span class="kw">for </span>(i, d) <span class="kw">in </span>temp {
-            ret = ret.combine(<span class="self">self</span>.assign(i, d)<span class="question-mark">?</span>);
+            ret &amp;= <span class="self">self</span>.assign(i, d)<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(ret)
@@ -1344,10 +1437,10 @@
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..=<span class="self">self</span>.meta.max_val {
             <span class="kw">let </span><span class="kw-2">mut </span>v = Bits::ZERO;
             v.set(i, <span class="bool-val">true</span>);
-            <span class="kw">let </span><span class="kw-2">mut </span>f = cells.iter().filter(|(<span class="kw">_</span>, x)| (<span class="kw-2">*</span>x).bitand(v) == v);
+            <span class="kw">let </span><span class="kw-2">mut </span>f = cells.iter().filter(|(<span class="kw">_</span>, x)| <span class="kw-2">*</span>x &amp; v == v);
             <span class="kw">if let </span><span class="prelude-val">Some</span>((idx, <span class="kw">_</span>)) = f.next() {
                 <span class="kw">if </span>f.next().is_none() {
-                    ret = ret.combine(<span class="self">self</span>.assign(<span class="kw-2">*</span>idx, v)<span class="question-mark">?</span>);
+                    ret &amp;= <span class="self">self</span>.assign(<span class="kw-2">*</span>idx, v)<span class="question-mark">?</span>;
                 }
             } <span class="kw">else </span>{
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Contradiction(()));
@@ -1365,19 +1458,90 @@
         <span class="kw">let </span><span class="kw-2">mut </span>ret = Elimination::Same;
         <span class="comment">// rows
         </span><span class="kw">for </span>r <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.meta.size {
-            ret = ret
-                .combine(<span class="self">self</span>.hidden_singles_helper(r * <span class="self">self</span>.meta.size..(r + <span class="number">1</span>) * <span class="self">self</span>.meta.size)<span class="question-mark">?</span>);
+            ret &amp;= <span class="self">self</span>.hidden_singles_helper(r * <span class="self">self</span>.meta.size..(r + <span class="number">1</span>) * <span class="self">self</span>.meta.size)<span class="question-mark">?</span>;
         }
         <span class="comment">// columns
         </span><span class="kw">for </span>c <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.meta.size {
-            ret = ret.combine(<span class="self">self</span>.hidden_singles_helper(
+            ret &amp;= <span class="self">self</span>.hidden_singles_helper(
                 (c..<span class="self">self</span>.meta.size * <span class="self">self</span>.meta.size).step_by(<span class="self">self</span>.meta.size),
-            )<span class="question-mark">?</span>);
+            )<span class="question-mark">?</span>;
         }
         <span class="comment">// regions
         </span><span class="kw">let </span>regions = <span class="self">self</span>.meta.regions.clone();
         <span class="kw">for </span>reg <span class="kw">in </span><span class="kw-2">&amp;</span>regions {
-            ret = ret.combine(<span class="self">self</span>.hidden_singles_helper(reg.iter().copied())<span class="question-mark">?</span>);
+            ret &amp;= <span class="self">self</span>.hidden_singles_helper(reg.iter().copied())<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(ret)
+    }
+
+    <span class="kw">fn </span>naked_tuple_helper&lt;T: Iterator&lt;Item = usize&gt; + Clone&gt;(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        n: usize,
+        unit: <span class="kw-2">&amp;</span>T,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Elimination, Contradiction&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>used_digits = Bits::ZERO;
+
+        <span class="kw">for </span>i <span class="kw">in </span>unit.clone() {
+            <span class="kw">let </span>v = <span class="self">self</span>.grid[i];
+            <span class="kw">if </span>v.count_ones() == <span class="number">1 </span>{
+                used_digits |= v;
+            }
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>ret = Elimination::Same;
+        <span class="kw">for </span>vs <span class="kw">in </span>(<span class="number">1</span>..=<span class="self">self</span>.meta.max_val)
+            .filter(|v| !used_digits[<span class="kw-2">*</span>v])
+            .combinations(n)
+        {
+            <span class="kw">let </span><span class="kw-2">mut </span>digits = Bits::ZERO;
+            <span class="kw">for </span>v <span class="kw">in </span>vs {
+                digits.set(v, <span class="bool-val">true</span>);
+            }
+
+            <span class="kw">let </span><span class="kw-2">mut </span>indices = Vec::new();
+            <span class="kw">for </span>i <span class="kw">in </span>unit.clone() {
+                <span class="kw">if </span><span class="self">self</span>.solved_digits[i] {
+                    <span class="kw">continue</span>;
+                }
+
+                <span class="kw">let </span>v = <span class="self">self</span>.grid[i];
+                <span class="kw">if </span>v &amp; digits == v {
+                    indices.push(i);
+                }
+            }
+
+            <span class="kw">if </span>indices.len() == n {
+                <span class="kw">for </span>i <span class="kw">in </span>unit.clone().filter(|i| !indices.contains(i)) {
+                    ret &amp;= <span class="self">self</span>.eliminate(i, digits)<span class="question-mark">?</span>;
+                }
+            }
+        }
+
+        <span class="prelude-val">Ok</span>(ret)
+    }
+
+    <span class="doccomment">/// Locate n cells that can only contain n values, and remove those digits from other seen
+    /// cells.
+    ///
+    /// # Errors
+    /// This will throw an error if searching for naked tuples leads to a contradiction.
+    </span><span class="kw">pub fn </span>naked_tuples(<span class="kw-2">&amp;mut </span><span class="self">self</span>, n: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Elimination, Contradiction&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ret = Elimination::Same;
+        <span class="comment">// rows
+        </span><span class="kw">for </span>r <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.meta.size {
+            ret &amp;= <span class="self">self</span>.naked_tuple_helper(n, <span class="kw-2">&amp;</span>(r * <span class="self">self</span>.meta.size..(r + <span class="number">1</span>) * <span class="self">self</span>.meta.size))<span class="question-mark">?</span>;
+        }
+        <span class="comment">// columns
+        </span><span class="kw">for </span>c <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.meta.size {
+            ret &amp;= <span class="self">self</span>.naked_tuple_helper(
+                n,
+                <span class="kw-2">&amp;</span>(c..<span class="self">self</span>.meta.size * <span class="self">self</span>.meta.size).step_by(<span class="self">self</span>.meta.size),
+            )<span class="question-mark">?</span>;
+        }
+        <span class="comment">// regions
+        </span><span class="kw">let </span>regions = <span class="self">self</span>.meta.regions.clone();
+        <span class="kw">for </span>reg <span class="kw">in </span><span class="kw-2">&amp;</span>regions {
+            ret &amp;= <span class="self">self</span>.naked_tuple_helper(n, <span class="kw-2">&amp;</span>reg.iter().copied())<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(ret)
     }
@@ -1408,7 +1572,16 @@
             <span class="kw">if </span><span class="self">self</span>.hidden_singles()<span class="question-mark">? </span>== Elimination::Eliminated {
                 <span class="kw">continue</span>;
             }
-            <span class="kw">break</span>;
+            <span class="kw">if </span><span class="self">self</span>.naked_tuples(<span class="number">2</span>)<span class="question-mark">? </span>== Elimination::Eliminated {
+                <span class="kw">continue</span>;
+            }
+            <span class="comment">// if self.naked_tuples(3)? == Elimination::Eliminated {
+            //     continue;
+            // }
+            // if self.naked_tuples(4)? == Elimination::Eliminated {
+            //     continue;
+            // }
+            </span><span class="kw">break</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -1664,10 +1837,10 @@
             <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">29</span>, <span class="number">38</span>, <span class="number">47</span>, <span class="number">56</span>, <span class="number">65</span>, <span class="number">74</span>,
         ];
         <span class="kw">for </span>i <span class="kw">in </span>sees {
-            <span class="macro">assert!</span>(board.grid[i].bitand(value).not_any());
+            <span class="macro">assert!</span>((board.grid[i] &amp; value).not_any());
         }
         <span class="kw">for </span>i <span class="kw">in </span>(<span class="number">0</span>..<span class="number">81</span>).filter(|x| !sees.contains(x)) {
-            <span class="macro">assert!</span>(board.grid[i].bitand(value).any());
+            <span class="macro">assert!</span>((board.grid[i] &amp; value).any());
         }
     }
 
@@ -1682,22 +1855,19 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>eliminations_combine() {
         <span class="macro">assert_eq!</span>(
-            Elimination::Eliminated.combine(Elimination::Eliminated),
+            Elimination::Eliminated &amp; Elimination::Eliminated,
             Elimination::Eliminated
         );
         <span class="macro">assert_eq!</span>(
-            Elimination::Eliminated.combine(Elimination::Same),
+            Elimination::Eliminated &amp; Elimination::Same,
             Elimination::Eliminated
         );
 
         <span class="macro">assert_eq!</span>(
-            Elimination::Same.combine(Elimination::Eliminated),
+            Elimination::Same &amp; Elimination::Eliminated,
             Elimination::Eliminated
         );
-        <span class="macro">assert_eq!</span>(
-            Elimination::Same.combine(Elimination::Same),
-            Elimination::Same
-        );
+        <span class="macro">assert_eq!</span>(Elimination::Same &amp; Elimination::Same, Elimination::Same);
     }
 
     <span class="attr">#[test]
