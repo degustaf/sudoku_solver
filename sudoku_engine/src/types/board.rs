@@ -41,6 +41,10 @@ pub enum SudokuErrors {
 
     /// An irregular
     IrregularWrongSizes,
+
+    /// A puzzle has multiple solutions. Used as an error in cases where a unique solution is
+    /// expected.
+    MultipleSolutions,
 }
 
 impl From<TryFromIntError> for SudokuErrors {
@@ -527,12 +531,12 @@ impl Board {
             if self.naked_tuples(2)? == Elimination::Eliminated {
                 continue;
             }
-            // if self.naked_tuples(3)? == Elimination::Eliminated {
-            //     continue;
-            // }
-            // if self.naked_tuples(4)? == Elimination::Eliminated {
-            //     continue;
-            // }
+            if self.naked_tuples(3)? == Elimination::Eliminated {
+                continue;
+            }
+            if self.naked_tuples(4)? == Elimination::Eliminated {
+                continue;
+            }
             break;
         }
         Ok(())

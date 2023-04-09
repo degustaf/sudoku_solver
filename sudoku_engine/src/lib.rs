@@ -73,6 +73,24 @@ pub fn eliminate(board: &mut Board, idx: usize, value: usize) -> Result<Eliminat
     Ok(board.eliminate(idx, v)?)
 }
 
+/// Attempt to solve the puzzle given in `board`.
+///
+/// # Errors
+/// This function can return an error if
+/// - The puzzle has no solutions.
+/// - The puzzle has multiple solutions.
+pub fn solve(board: &Board) -> Result<Board, SudokuErrors> {
+    let mut slns = board.solutions();
+    let Some(result) = slns.next() else {
+        return Err(SudokuErrors::Contradiction)
+    };
+
+    match slns.next() {
+        Some(_) => Err(SudokuErrors::MultipleSolutions),
+        None => Ok(result),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
