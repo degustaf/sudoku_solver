@@ -125,6 +125,24 @@
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
 </pre><pre class="rust"><code><span class="doccomment">//! Provides ways to interact with a sudoku puzzle.
 
 </span><span class="attr">#![warn(missing_docs)]
@@ -198,6 +216,24 @@
     }
     <span class="kw">let </span>v = board.to_bits(value)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(board.eliminate(idx, v)<span class="question-mark">?</span>)
+}
+
+<span class="doccomment">/// Attempt to solve the puzzle given in `board`.
+///
+/// # Errors
+/// This function can return an error if
+/// - The puzzle has no solutions.
+/// - The puzzle has multiple solutions.
+</span><span class="kw">pub fn </span>solve(board: <span class="kw-2">&amp;</span>Board) -&gt; <span class="prelude-ty">Result</span>&lt;Board, SudokuErrors&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>slns = board.solutions();
+    <span class="kw">let </span><span class="prelude-val">Some</span>(result) = slns.next() <span class="kw">else </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(SudokuErrors::Contradiction)
+    };
+
+    <span class="kw">match </span>slns.next() {
+        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(SudokuErrors::MultipleSolutions),
+        <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Ok</span>(result),
+    }
 }
 
 <span class="attr">#[cfg(test)]
