@@ -7,10 +7,10 @@ use core::iter::Iterator;
 use core::num::TryFromIntError;
 use core::ops::BitAnd;
 use core::ops::BitAndAssign;
-use core::ops::BitOr;
 use core::ops::Not;
 use f_puzzles::FPuzzles;
 use fmt::Display;
+use itertools::Itertools;
 use rayon::prelude::*;
 use std::fmt;
 use std::sync::Arc;
@@ -75,14 +75,22 @@ pub enum Elimination {
     Same,
 }
 
-impl Elimination {
-    /// Provides a way of combining elimination results that properly propogate the current state
-    /// of eliminations.
-    fn combine(self, rhs: Self) -> Self {
+impl BitAnd<Elimination> for Elimination {
+    type Output = Elimination;
+
+    fn bitand(self, rhs: Elimination) -> Self::Output {
         if self == Self::Eliminated {
             Self::Eliminated
         } else {
             rhs
+        }
+    }
+}
+
+impl BitAndAssign for Elimination {
+    fn bitand_assign(&mut self, rhs: Self) {
+        if *self != Self::Eliminated {
+            *self = rhs;
         }
     }
 }
@@ -216,7 +224,7 @@ impl Board {
 
         for (i, o) in digits.iter().enumerate() {
             if let Some(d) = o {
-                if !b.grid[i].bitand(d).any() {
+                if !(b.grid[i] & d).any() {
                     return Err(SudokuErrors::Contradiction);
                 }
                 b.assign(i, *d)?;
@@ -259,7 +267,7 @@ impl Board {
     #[must_use]
     pub fn possible_value(&self, idx: usize, value: Bits) -> bool {
         debug_assert!(idx < self.len());
-        self.grid[idx].bitand(value).any()
+        (self.grid[idx] & value).any()
     }
 
     /// assigns `value` into the grid at `idx`.
@@ -277,12 +285,12 @@ impl Board {
     pub(crate) fn assign(&mut self, idx: usize, value: Bits) -> Result<Elimination, Contradiction> {
         debug_assert_eq!(value.count_ones(), 1);
         debug_assert!(idx < self.len());
-        debug_assert_eq!(self.grid[idx].bitand(value), value);
+        debug_assert_eq!(self.grid[idx] & value, value);
 
         if !self.solved_digits[idx] {
             self.grid[idx] = value;
             self.solved_digits.set(idx, true);
-            self.used_digits = self.used_digits.bitor(value);
+            self.used_digits |= value;
             if self.used_digits.count_ones() > self.meta.size {
                 return Err(Contradiction(()));
             }
@@ -293,20 +301,20 @@ impl Board {
 
         let mut ret = Elimination::Same;
         for i in (row..(row + self.meta.size)).filter(move |x| *x != idx) {
-            ret = ret.combine(self.eliminate(i, value)?);
+            ret &= self.eliminate(i, value)?;
         }
 
         for i in (column..(self.meta.size * self.meta.size))
             .step_by(self.meta.size)
             .filter(move |x| *x != idx)
         {
-            ret = ret.combine(self.eliminate(i, value)?);
+            ret &= self.eliminate(i, value)?;
         }
 
         for region in &self.meta.regions {
             if region.contains(&idx) {
                 for cell in region.clone().iter().filter(move |x| **x != idx) {
-                    ret = ret.combine(self.eliminate(*cell, value)?);
+                    ret &= self.eliminate(*cell, value)?;
                 }
                 break;
             }
@@ -332,11 +340,11 @@ impl Board {
     ) -> Result<Elimination, Contradiction> {
         debug_assert!(idx <= self.len());
 
-        if !self.grid[idx].bitand(value).any() {
+        if !(self.grid[idx] & value).any() {
             return Ok(Elimination::Same);
         }
 
-        self.grid[idx].bitand_assign(value.not());
+        self.grid[idx] &= value.not();
         if self.grid[idx] == Bits::ZERO {
             Err(Contradiction(()))
         } else {
@@ -366,7 +374,7 @@ impl Board {
             .collect();
 
         for (i, d) in temp {
-            ret = ret.combine(self.assign(i, d)?);
+            ret &= self.assign(i, d)?;
         }
 
         Ok(ret)
@@ -381,10 +389,10 @@ impl Board {
         for i in 1..=self.meta.max_val {
             let mut v = Bits::ZERO;
             v.set(i, true);
-            let mut f = cells.iter().filter(|(_, x)| (*x).bitand(v) == v);
+            let mut f = cells.iter().filter(|(_, x)| *x & v == v);
             if let Some((idx, _)) = f.next() {
                 if f.next().is_none() {
-                    ret = ret.combine(self.assign(*idx, v)?);
+                    ret &= self.assign(*idx, v)?;
                 }
             } else {
                 return Err(Contradiction(()));
@@ -402,19 +410,90 @@ impl Board {
         let mut ret = Elimination::Same;
         // rows
         for r in 0..self.meta.size {
-            ret = ret
-                .combine(self.hidden_singles_helper(r * self.meta.size..(r + 1) * self.meta.size)?);
+            ret &= self.hidden_singles_helper(r * self.meta.size..(r + 1) * self.meta.size)?;
         }
         // columns
         for c in 0..self.meta.size {
-            ret = ret.combine(self.hidden_singles_helper(
+            ret &= self.hidden_singles_helper(
                 (c..self.meta.size * self.meta.size).step_by(self.meta.size),
-            )?);
+            )?;
         }
         // regions
         let regions = self.meta.regions.clone();
         for reg in &regions {
-            ret = ret.combine(self.hidden_singles_helper(reg.iter().copied())?);
+            ret &= self.hidden_singles_helper(reg.iter().copied())?;
+        }
+        Ok(ret)
+    }
+
+    fn naked_tuple_helper<T: Iterator<Item = usize> + Clone>(
+        &mut self,
+        n: usize,
+        unit: &T,
+    ) -> Result<Elimination, Contradiction> {
+        let mut used_digits = Bits::ZERO;
+
+        for i in unit.clone() {
+            let v = self.grid[i];
+            if v.count_ones() == 1 {
+                used_digits |= v;
+            }
+        }
+
+        let mut ret = Elimination::Same;
+        for vs in (1..=self.meta.max_val)
+            .filter(|v| !used_digits[*v])
+            .combinations(n)
+        {
+            let mut digits = Bits::ZERO;
+            for v in vs {
+                digits.set(v, true);
+            }
+
+            let mut indices = Vec::new();
+            for i in unit.clone() {
+                if self.solved_digits[i] {
+                    continue;
+                }
+
+                let v = self.grid[i];
+                if v & digits == v {
+                    indices.push(i);
+                }
+            }
+
+            if indices.len() == n {
+                for i in unit.clone().filter(|i| !indices.contains(i)) {
+                    ret &= self.eliminate(i, digits)?;
+                }
+            }
+        }
+
+        Ok(ret)
+    }
+
+    /// Locate n cells that can only contain n values, and remove those digits from other seen
+    /// cells.
+    ///
+    /// # Errors
+    /// This will throw an error if searching for naked tuples leads to a contradiction.
+    pub fn naked_tuples(&mut self, n: usize) -> Result<Elimination, Contradiction> {
+        let mut ret = Elimination::Same;
+        // rows
+        for r in 0..self.meta.size {
+            ret &= self.naked_tuple_helper(n, &(r * self.meta.size..(r + 1) * self.meta.size))?;
+        }
+        // columns
+        for c in 0..self.meta.size {
+            ret &= self.naked_tuple_helper(
+                n,
+                &(c..self.meta.size * self.meta.size).step_by(self.meta.size),
+            )?;
+        }
+        // regions
+        let regions = self.meta.regions.clone();
+        for reg in &regions {
+            ret &= self.naked_tuple_helper(n, &reg.iter().copied())?;
         }
         Ok(ret)
     }
@@ -445,6 +524,15 @@ impl Board {
             if self.hidden_singles()? == Elimination::Eliminated {
                 continue;
             }
+            if self.naked_tuples(2)? == Elimination::Eliminated {
+                continue;
+            }
+            // if self.naked_tuples(3)? == Elimination::Eliminated {
+            //     continue;
+            // }
+            // if self.naked_tuples(4)? == Elimination::Eliminated {
+            //     continue;
+            // }
             break;
         }
         Ok(())
@@ -701,10 +789,10 @@ mod tests {
             0, 1, 2, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 29, 38, 47, 56, 65, 74,
         ];
         for i in sees {
-            assert!(board.grid[i].bitand(value).not_any());
+            assert!((board.grid[i] & value).not_any());
         }
         for i in (0..81).filter(|x| !sees.contains(x)) {
-            assert!(board.grid[i].bitand(value).any());
+            assert!((board.grid[i] & value).any());
         }
     }
 
@@ -719,22 +807,19 @@ mod tests {
     #[test]
     fn eliminations_combine() {
         assert_eq!(
-            Elimination::Eliminated.combine(Elimination::Eliminated),
+            Elimination::Eliminated & Elimination::Eliminated,
             Elimination::Eliminated
         );
         assert_eq!(
-            Elimination::Eliminated.combine(Elimination::Same),
+            Elimination::Eliminated & Elimination::Same,
             Elimination::Eliminated
         );
 
         assert_eq!(
-            Elimination::Same.combine(Elimination::Eliminated),
+            Elimination::Same & Elimination::Eliminated,
             Elimination::Eliminated
         );
-        assert_eq!(
-            Elimination::Same.combine(Elimination::Same),
-            Elimination::Same
-        );
+        assert_eq!(Elimination::Same & Elimination::Same, Elimination::Same);
     }
 
     #[test]

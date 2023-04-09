@@ -22,7 +22,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: cargo test --all
+      - run: cargo test --all --release
 
   clippy:
     name: Clippy 
