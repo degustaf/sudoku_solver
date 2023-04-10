@@ -15,7 +15,7 @@ enum Command {
 }
 
 fn solve_helper(repr: &str) -> Result<sudoku_engine::Board, sudoku_engine::SudokuErrors> {
-    let board = sudoku_engine::from_string(&repr)?;
+    let board = sudoku_engine::from_string(repr)?;
     sudoku_engine::solve(&board)
 }
 

@@ -24,7 +24,7 @@ impl SolutionIterator {
                     }
                 }
                 Some(next_idx) => {
-                    let values: Vec<usize> = board.get_values(next_idx).iter_ones().collect();
+                    let values = board.iter_ones(next_idx);
                     Self {
                         stack: vec![(board, next_idx, values)],
                     }
@@ -68,7 +68,7 @@ impl std::iter::Iterator for SolutionIterator {
                     continue;
                 }
                 Some(idx) => {
-                    let new_values: Vec<usize> = board.get_values(idx).iter_ones().collect();
+                    let new_values = board.iter_ones(idx);
                     self.stack.push((board, idx, new_values));
                 }
             }

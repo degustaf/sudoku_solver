@@ -99,7 +99,7 @@ impl BitAndAssign for Elimination {
     }
 }
 
-pub(crate) type Bits = bit_array::BitArray<[u32; 1]>;
+pub(crate) type Bits = usize;
 type MoreBits = bit_array::BitArray<[u64; 4]>;
 pub const MAX_SIZE: usize = 16;
 
@@ -203,11 +203,11 @@ impl Board {
         }
 
         let full = Self::empty_cell(max_val)?;
-        let mut grid = vec![Bits::ZERO; size * size];
+        let mut grid = vec![0; size * size];
         grid.fill(full);
 
         Ok(Board {
-            used_digits: Bits::ZERO,
+            used_digits: 0,
             solved_digits: MoreBits::ZERO,
             grid,
             meta: Arc::new(BoardMeta {
@@ -228,7 +228,7 @@ impl Board {
 
         for (i, o) in digits.iter().enumerate() {
             if let Some(d) = o {
-                if !(b.grid[i] & d).any() {
+                if b.grid[i] & d == 0 {
                     return Err(SudokuErrors::Contradiction);
                 }
                 b.assign(i, *d)?;
@@ -238,14 +238,29 @@ impl Board {
         Ok(b)
     }
 
+    pub(crate) fn iter_ones(&self, idx: usize) -> Vec<usize> {
+        let mut ret = Vec::with_capacity(self.meta.max_val);
+        let value = self.grid[idx];
+        for i in 1..=self.meta.max_val {
+            if 1 << i & value != 0 {
+                ret.push(i);
+            }
+        }
+
+        ret
+    }
+
+    /// The boils down to left shifting and subtracting. It is off by one from what is expected,
+    /// because we are not using the 0th bit.
+    /// eq. If max_val is 9, then we are doing 1 << 10 - 2 = 0111_1111_11
     fn empty_cell(max_val: usize) -> Result<Bits, SudokuErrors> {
-        let mut full: Bits = Bits::ZERO;
-        if full.len() <= max_val {
+        let mut full: Bits = 1;
+        if usize::BITS as usize <= max_val {
             return Err(SudokuErrors::MaxTooLarge);
         }
-        for i in 1..=max_val {
-            full.set(i, true);
-        }
+        full <<= max_val + 1;
+        full -= 2;
+
         Ok(full)
     }
 
@@ -261,9 +276,7 @@ impl Board {
         if value > self.meta.max_val {
             return Err(SudokuErrors::ValueTooLarge);
         }
-        let mut v = Bits::ZERO;
-        debug_assert!(value < v.len());
-        v.set(value, true);
+        let v = 1 << value;
         Ok(v)
     }
 
@@ -271,7 +284,7 @@ impl Board {
     #[must_use]
     pub fn possible_value(&self, idx: usize, value: Bits) -> bool {
         debug_assert!(idx < self.len());
-        (self.grid[idx] & value).any()
+        self.grid[idx] & value != 0
     }
 
     /// assigns `value` into the grid at `idx`.
@@ -295,7 +308,7 @@ impl Board {
             self.grid[idx] = value;
             self.solved_digits.set(idx, true);
             self.used_digits |= value;
-            if self.used_digits.count_ones() > self.meta.size {
+            if self.used_digits.count_ones() as usize > self.meta.size {
                 return Err(Contradiction(()));
             }
         }
@@ -344,12 +357,12 @@ impl Board {
     ) -> Result<Elimination, Contradiction> {
         debug_assert!(idx <= self.len());
 
-        if !(self.grid[idx] & value).any() {
+        if self.grid[idx] & value == 0 {
             return Ok(Elimination::Same);
         }
 
         self.grid[idx] &= value.not();
-        if self.grid[idx] == Bits::ZERO {
+        if self.grid[idx] == 0 {
             Err(Contradiction(()))
         } else {
             Ok(Elimination::Eliminated)
@@ -391,8 +404,7 @@ impl Board {
         let mut ret = Elimination::Same;
         let cells: Vec<(usize, Bits)> = unit.map(|idx| (idx, self.grid[idx])).collect();
         for i in 1..=self.meta.max_val {
-            let mut v = Bits::ZERO;
-            v.set(i, true);
+            let v = 1 << i;
             let mut f = cells.iter().filter(|(_, x)| *x & v == v);
             if let Some((idx, _)) = f.next() {
                 if f.next().is_none() {
@@ -435,7 +447,7 @@ impl Board {
         n: usize,
         unit: &T,
     ) -> Result<Elimination, Contradiction> {
-        let mut used_digits = Bits::ZERO;
+        let mut used_digits = 0;
 
         for i in unit.clone() {
             let v = self.grid[i];
@@ -446,12 +458,12 @@ impl Board {
 
         let mut ret = Elimination::Same;
         for vs in (1..=self.meta.max_val)
-            .filter(|v| !used_digits[*v])
+            .filter(|v| *v & used_digits == 0)
             .combinations(n)
         {
-            let mut digits = Bits::ZERO;
+            let mut digits = 0;
             for v in vs {
-                digits.set(v, true);
+                digits |= 1 << v;
             }
 
             let mut indices = Vec::new();
@@ -502,6 +514,16 @@ impl Board {
         Ok(ret)
     }
 
+    #[allow(dead_code)]
+    fn hidden_tuples_helper<T: Iterator<Item = usize>>(
+        &mut self,
+        _n: usize,
+        _unit: &T,
+    ) -> Result<Elimination, Contradiction> {
+        let ret = Elimination::Same;
+        Ok(ret)
+    }
+
     pub(crate) fn next_idx_to_guess(&self) -> Option<usize> {
         let mut count = self.meta.size + 1;
         let mut ret = None;
@@ -510,14 +532,15 @@ impl Board {
             if d.count_ones() == 1 {
                 continue;
             }
-            if d.count_ones() < count {
-                count = d.count_ones();
+            if (d.count_ones() as usize) < count {
+                count = d.count_ones() as usize;
                 ret = Some(i);
             }
         }
         ret
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_values(&self, idx: usize) -> Bits {
         self.grid[idx]
     }
@@ -561,8 +584,7 @@ impl Board {
         let Some(idx) = self.next_idx_to_guess() else {
                 return 0;
             };
-        let values: Vec<usize> = self.get_values(idx).iter_ones().collect();
-        let count = values
+        let count = self.iter_ones(idx)
             .par_iter()
             .fold(
                 || 0,
@@ -650,27 +672,23 @@ impl TryFrom<&FPuzzles> for Board {
 }
 
 pub(crate) fn to_bits(value: usize) -> Bits {
-    let mut v = Bits::ZERO;
-    debug_assert!(value < v.len());
-    v.set(value, true);
-    v
+    debug_assert!(value < usize::BITS as usize);
+    1 << value
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use bitvec::bitarr;
-    use bitvec::prelude::Lsb0;
     use tokio::sync::mpsc::channel;
 
-    const ONE: Bits = bitarr!(const u32, Lsb0; 0,1);
-    const TWO: Bits = bitarr!(const u32, Lsb0; 0,0,1);
-    const THREE: Bits = bitarr!(const u32, Lsb0; 0,0,0,1);
-    const FOUR: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,1);
-    const FIVE: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,0,1);
-    const SIX: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,0,0,1);
-    const SEVEN: Bits = bitarr!(const u32, Lsb0; 0,0,0,0,0,0,0,1);
+    const ONE: Bits = 1 << 1;
+    const TWO: Bits = 1 << 2;
+    const THREE: Bits = 1 << 3;
+    const FOUR: Bits = 1 << 4;
+    const FIVE: Bits = 1 << 5;
+    const SIX: Bits = 1 << 6;
+    const SEVEN: Bits = 1 << 7;
 
     #[test]
     fn parsing_bad_digits() {
@@ -723,13 +741,13 @@ mod tests {
         let board = res.unwrap();
         assert_eq!(board.meta.size, 9);
         assert_eq!(board.meta.max_val, 9);
-        assert_eq!(board.used_digits, Bits::ZERO);
+        assert_eq!(board.used_digits, 0);
         assert_eq!(board.len(), 81);
         for v in board.grid {
             assert_eq!(v.count_ones(), 9);
-            assert_eq!(v.get(0).as_deref(), Some(&false));
+            assert_eq!(v & 1<< 0, 0);
             for i in 1..=9 {
-                assert_eq!(v.get(i).as_deref(), Some(&true));
+                assert_ne!(v & 1 << i, 0);
             }
         }
     }
@@ -778,7 +796,7 @@ mod tests {
         let mut board = Board::new(9, 9).unwrap();
         let mut value = board.to_bits(6).unwrap();
         assert_eq!(board.eliminate(11, value), Ok(Elimination::Eliminated));
-        value.set(2, true);
+        value |= 1<<2;
         assert_eq!(board.eliminate(11, value), Ok(Elimination::Eliminated));
         assert_eq!(board.eliminate(11, value), Ok(Elimination::Same));
     }
@@ -793,10 +811,10 @@ mod tests {
             0, 1, 2, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 29, 38, 47, 56, 65, 74,
         ];
         for i in sees {
-            assert!((board.grid[i] & value).not_any());
+            assert_eq!(board.grid[i] & value, 0);
         }
         for i in (0..81).filter(|x| !sees.contains(x)) {
-            assert!((board.grid[i] & value).any());
+            assert_ne!(board.grid[i] & value, 0);
         }
     }
 
@@ -907,14 +925,6 @@ mod tests {
     }
 
     #[test]
-    fn bits_size() {
-        let x = Bits::ZERO;
-        assert_eq!(x.len(), 32);
-        let y = MoreBits::ZERO;
-        assert_eq!(y.len(), MAX_SIZE * MAX_SIZE);
-    }
-
-    #[test]
     fn next_idx_to_guess() {
         let mut board = Board::new(6, 6).unwrap();
         assert_eq!(board.assign(0, ONE), Ok(Elimination::Eliminated));
@@ -959,7 +969,7 @@ mod tests {
         let b = res_b.unwrap();
         assert_eq!(b.grid[12], ONE);
         assert_eq!(b.grid[40], FIVE);
-        assert_eq!(b.grid[71], bitarr!(u32, Lsb0; 0,1,1,1));
+        assert_eq!(b.grid[71], 14);
     }
 
     #[test]

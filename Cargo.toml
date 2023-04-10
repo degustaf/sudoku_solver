@@ -5,3 +5,6 @@ members = [
   "sudoku_engine",
   "sudoku_solver",
 ]
+
+[profile.release]
+debug = 1
