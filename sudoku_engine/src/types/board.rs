@@ -131,6 +131,9 @@ struct BoardMeta {
     /// The maximum value that is used in this sudoku.
     max_val: usize,
 
+    rows: Vec<Vec<usize>>,
+    columns: Vec<Vec<usize>>,
+
     /// In a regular sudoku, these will represent the 9 3x3 boxes. We aren't hardcoding that in
     /// anticipation of irregular sudoku.
     regions: Vec<Vec<usize>>,
@@ -207,6 +210,16 @@ impl Board {
         let mut grid = vec![0; size * size];
         grid.fill(full);
 
+        let mut rows = Vec::with_capacity(size);
+        for r in 0..size {
+            rows.push((r * size..(r + 1) * size).collect());
+        }
+
+        let mut columns = Vec::with_capacity(size);
+        for c in 0..size {
+           columns.push((c..size * size).step_by(size).collect());
+        }
+
         Ok(Board {
             used_digits: 0,
             solved_digits: MoreBits::ZERO,
@@ -214,6 +227,8 @@ impl Board {
             meta: Arc::new(BoardMeta {
                 size,
                 max_val,
+                rows,
+                columns,
                 regions,
             }),
         })
@@ -314,24 +329,31 @@ impl Board {
             }
         }
 
-        let row = self.meta.size * (idx / self.meta.size);
-        let column = idx - row;
+        let row = idx / self.meta.size;
+        let column = idx - self.meta.size * row;
 
+        let meta = self.meta.clone();
         let mut ret = Elimination::Same;
-        for i in (row..(row + self.meta.size)).filter(move |x| *x != idx) {
-            ret &= self.eliminate(i, value)?;
+        for i in &meta.rows[row] {
+            if *i == idx {
+                continue;
+            }
+            ret &= self.eliminate(*i, value)?;
         }
 
-        for i in (column..(self.meta.size * self.meta.size))
-            .step_by(self.meta.size)
-            .filter(move |x| *x != idx)
-        {
-            ret &= self.eliminate(i, value)?;
+        for i in &meta.columns[column] {
+            if *i == idx {
+                continue;
+            }
+            ret &= self.eliminate(*i, value)?;
         }
 
-        for region in &self.meta.regions {
+        for region in &meta.regions {
             if region.contains(&idx) {
-                for cell in region.clone().iter().filter(move |x| **x != idx) {
+                for cell in region {
+                    if *cell == idx {
+                        continue;
+                    }
                     ret &= self.eliminate(*cell, value)?;
                 }
                 break;
@@ -398,12 +420,12 @@ impl Board {
         Ok(ret)
     }
 
-    fn hidden_singles_helper<T: Iterator<Item = usize>>(
+    fn hidden_singles_helper (
         &mut self,
-        unit: T,
+        unit: &[usize]
     ) -> Result<Elimination, Contradiction> {
         let mut ret = Elimination::Same;
-        let cells: Vec<(usize, Bits)> = unit.map(|idx| (idx, self.grid[idx])).collect();
+        let cells: Vec<(usize, Bits)> = unit.iter().map(|idx| (*idx, self.grid[*idx])).collect();
         for i in 1..=self.meta.max_val {
             let v = 1 << i;
             let mut f = cells.iter().filter(|(_, x)| *x & v == v);
@@ -430,33 +452,31 @@ impl Board {
     /// This will throw an error if searching for hidden singles leads to a contradiction.
     pub fn hidden_singles(&mut self) -> Result<Elimination, Contradiction> {
         let mut ret = Elimination::Same;
+        let meta = self.meta.clone();
         // rows
-        for r in 0..self.meta.size {
-            ret &= self.hidden_singles_helper(r * self.meta.size..(r + 1) * self.meta.size)?;
+        for r in &meta.rows {
+            ret &= self.hidden_singles_helper(r)?;
         }
         // columns
-        for c in 0..self.meta.size {
-            ret &= self.hidden_singles_helper(
-                (c..self.meta.size * self.meta.size).step_by(self.meta.size),
-            )?;
+        for c in &meta.columns {
+            ret &= self.hidden_singles_helper(c)?;
         }
         // regions
-        let regions = self.meta.regions.clone();
-        for reg in &regions {
-            ret &= self.hidden_singles_helper(reg.iter().copied())?;
+        for reg in &meta.regions {
+            ret &= self.hidden_singles_helper(reg)?;
         }
         Ok(ret)
     }
 
-    fn naked_tuple_helper<T: Iterator<Item = usize> + Clone>(
+    fn naked_tuple_helper (
         &mut self,
         n: usize,
-        unit: &T,
+        unit: &[usize],
     ) -> Result<Elimination, Contradiction> {
         let mut used_digits = 0;
 
-        for i in unit.clone() {
-            let v = self.grid[i];
+        for i in unit {
+            let v = self.grid[*i];
             if v.count_ones() == 1 {
                 used_digits |= v;
             }
@@ -473,20 +493,23 @@ impl Board {
             }
 
             let mut indices = Vec::new();
-            for i in unit.clone() {
-                if self.solved_digits[i] {
+            for i in unit {
+                if self.solved_digits[*i] {
                     continue;
                 }
 
-                let v = self.grid[i];
+                let v = self.grid[*i];
                 if v & digits == v {
-                    indices.push(i);
+                    indices.push(*i);
                 }
             }
 
             if indices.len() == n {
-                for i in unit.clone().filter(|i| !indices.contains(i)) {
-                    ret &= self.eliminate(i, digits)?;
+                for i in unit {
+                    if indices.contains(i) {
+                        continue;
+                    }
+                    ret &= self.eliminate(*i, digits)?;
                 }
             }
         }
@@ -501,21 +524,18 @@ impl Board {
     /// This will throw an error if searching for naked tuples leads to a contradiction.
     pub fn naked_tuples(&mut self, n: usize) -> Result<Elimination, Contradiction> {
         let mut ret = Elimination::Same;
+        let meta = self.meta.clone();
         // rows
-        for r in 0..self.meta.size {
-            ret &= self.naked_tuple_helper(n, &(r * self.meta.size..(r + 1) * self.meta.size))?;
+        for r in &meta.rows {
+            ret &= self.naked_tuple_helper(n, &r)?;
         }
         // columns
-        for c in 0..self.meta.size {
-            ret &= self.naked_tuple_helper(
-                n,
-                &(c..self.meta.size * self.meta.size).step_by(self.meta.size),
-            )?;
+        for c in &meta.columns {
+            ret &= self.naked_tuple_helper(n, &c)?;
         }
         // regions
-        let regions = self.meta.regions.clone();
-        for reg in &regions {
-            ret &= self.naked_tuple_helper(n, &reg.iter().copied())?;
+        for reg in &meta.regions {
+            ret &= self.naked_tuple_helper(n, &reg)?;
         }
         Ok(ret)
     }
@@ -557,15 +577,24 @@ impl Board {
             if self.hidden_singles()? == Elimination::Eliminated {
                 continue;
             }
-            if self.naked_tuples(2)? == Elimination::Eliminated {
-                continue;
+            if self.solved() {
+                break;
             }
-            if self.naked_tuples(3)? == Elimination::Eliminated {
-                continue;
-            }
-            if self.naked_tuples(4)? == Elimination::Eliminated {
-                continue;
-            }
+            // if self.naked_tuples(2)? == Elimination::Eliminated {
+            //     continue;
+            // }
+            // if self.solved() {
+            //     break;
+            // }
+            // if self.naked_tuples(3)? == Elimination::Eliminated {
+            //     continue;
+            // }
+            // if self.solved() {
+            //     break;
+            // }
+            // if self.naked_tuples(4)? == Elimination::Eliminated {
+            //     continue;
+            // }
             break;
         }
         Ok(())
@@ -593,6 +622,7 @@ impl Board {
         let count = self
             .iter_ones(idx)
             .par_iter()
+            .panic_fuse()
             .fold(
                 || 0,
                 |acc, v| {
@@ -1062,7 +1092,9 @@ mod tests {
         let mut board = b.unwrap();
         let token = CancellationToken::new();
         let (ch_tx, mut ch_rx) = channel::<usize>(10);
-        board.solution_count(&token, &ch_tx);
+        rayon::scope(move |_| {
+            board.solution_count(&token, &ch_tx);
+        });
         let mut count = 0;
         while let Ok(n) = ch_rx.try_recv() {
             count += n;

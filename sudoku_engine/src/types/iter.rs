@@ -90,6 +90,7 @@ mod tests {
         assert!(res.is_ok());
         let board = res.unwrap();
         let iter = SolutionIterator::new(&board);
+        eprintln!("Iter created");
         assert_eq!(iter.count(), 78);
     }
 
