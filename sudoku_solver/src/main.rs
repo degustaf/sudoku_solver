@@ -4,6 +4,9 @@ use clap::{Parser, Subcommand};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use crate::build_irregular::build_irregular;
+
+mod build_irregular;
 
 #[derive(Subcommand)]
 enum Command {
@@ -12,6 +15,8 @@ enum Command {
 
     /// Treat each line of a file as an individual puzzle, and solve all of them.
     FromFile { path: PathBuf },
+
+    BuildIrregular { size: usize, out_file: PathBuf, start: Option<Vec<usize>> },
 }
 
 fn solve_helper(repr: &str) -> Result<sudoku_engine::Board, sudoku_engine::SudokuErrors> {
@@ -70,5 +75,19 @@ fn main() {
     match args.cmd {
         Command::Solve { repr } => solve_puzzle(&repr),
         Command::FromFile { path } => solve_file(&path),
+        Command::BuildIrregular {size, out_file, start } => {
+            match start {
+                None => {
+                    build_irregular(size, &out_file, None);
+                }
+                Some(v) => {
+                    if v.len() != size * size {
+                        eprintln!("Wrong size of starting array");
+                    } else {
+                        build_irregular(size, &out_file, Some(&v));
+                    }
+                }
+            };
+        }
     }
 }

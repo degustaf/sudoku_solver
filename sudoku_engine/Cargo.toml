@@ -10,5 +10,5 @@ bitvec = "~1.0"
 f_puzzles = { path = "../f_puzzles" }
 itertools = "0.10.5"
 rayon = "1.7"
-tokio = { version = "1.26", features = ["sync"] }
+tokio = { version = "1.26", features = ["macros", "sync", "rt"] }
 tokio-util = "0.7"

@@ -12,3 +12,5 @@ target/
 *.pdb
 
 perf.data*
+flamegraph*
+*/flamegraph*

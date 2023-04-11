@@ -14,6 +14,7 @@ use itertools::Itertools;
 use rayon::prelude::*;
 use std::fmt;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::mpsc::Sender;
 use tokio_util::sync::CancellationToken;
@@ -193,7 +194,7 @@ impl Board {
         Self::new_with_regions(size, max_val, build_default_regions(size)?)
     }
 
-    fn new_with_regions(
+    pub(crate) fn new_with_regions(
         size: usize,
         max_val: usize,
         regions: Vec<Vec<usize>>,
@@ -408,6 +409,11 @@ impl Board {
             let mut f = cells.iter().filter(|(_, x)| *x & v == v);
             if let Some((idx, _)) = f.next() {
                 if f.next().is_none() {
+                    if self.grid[*idx] & v == 0 {
+                        // Apparently, we've already removed v from this cell since we cached it
+                        // above. So, we've got a contradiction.
+                        return Err(Contradiction(()));
+                    }
                     ret &= self.assign(*idx, v)?;
                 }
             } else {
@@ -584,7 +590,8 @@ impl Board {
         let Some(idx) = self.next_idx_to_guess() else {
                 return 0;
             };
-        let count = self.iter_ones(idx)
+        let count = self
+            .iter_ones(idx)
             .par_iter()
             .fold(
                 || 0,
@@ -600,18 +607,50 @@ impl Board {
             )
             .sum::<usize>();
         if count > 500 {
-            while let Err(TrySendError::Full(_)) = tx.try_send(count) {}
+            while let Err(TrySendError::Full(_)) = tx.try_send(count) {
+                if token.is_cancelled() {
+                    return count;
+                }
+            }
             0
         } else {
             count
         }
     }
 
-    /// count the number of solutions to a puzzle. A partial count is periodically transmitted
+    /// Count the number of solutions to a puzzle. A partial count is periodically transmitted
     /// through the channel `tx`.
     pub fn solution_count(&mut self, token: &CancellationToken, tx: &Sender<usize>) {
         let count = self.solution_count_helper(token, tx);
-        while let Err(TrySendError::Full(_)) = tx.try_send(count) {}
+        while let Err(TrySendError::Full(_)) = tx.try_send(count) {
+            if token.is_cancelled() {
+                break;
+            }
+        }
+    }
+
+    /// Count the number of solutions to a puzzle and return the result.
+    #[tokio::main(flavor = "current_thread")]
+    pub async fn solution_count_max(&mut self, max_count: usize) -> usize {
+        let (tx, mut rx) = mpsc::channel::<usize>(100);
+        let token = CancellationToken::new();
+        let mut b = self.clone();
+        let token_clone = token.clone();
+        rayon::spawn(move || {
+            b.solution_count(&token_clone, &tx);
+        });
+        let mut count = 0;
+        while let Some(n) = rx.recv().await {
+            count += n;
+            if count > max_count {
+                token.cancel();
+                break;
+            }
+        }
+        while let Some(n) = rx.recv().await {
+            count += n;
+        }
+        count
     }
 }
 
@@ -745,7 +784,7 @@ mod tests {
         assert_eq!(board.len(), 81);
         for v in board.grid {
             assert_eq!(v.count_ones(), 9);
-            assert_eq!(v & 1<< 0, 0);
+            assert_eq!(v & 1 << 0, 0);
             for i in 1..=9 {
                 assert_ne!(v & 1 << i, 0);
             }
@@ -796,7 +835,7 @@ mod tests {
         let mut board = Board::new(9, 9).unwrap();
         let mut value = board.to_bits(6).unwrap();
         assert_eq!(board.eliminate(11, value), Ok(Elimination::Eliminated));
-        value |= 1<<2;
+        value |= 1 << 2;
         assert_eq!(board.eliminate(11, value), Ok(Elimination::Eliminated));
         assert_eq!(board.eliminate(11, value), Ok(Elimination::Same));
     }

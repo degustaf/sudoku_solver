@@ -41,6 +41,25 @@ pub fn from_string(repr: &str) -> Result<Board, SudokuErrors> {
     Board::from_digits(size, max_val, &digits)
 }
 
+/// Create a puzzle from a slice that contains the region number for each index.
+pub fn from_regions(
+    size: usize,
+    max_val: usize,
+    region_numbers: &[usize],
+) -> Result<Board, SudokuErrors> {
+    if region_numbers.len() != size * size {
+        return Err(SudokuErrors::BadSize);
+    }
+    let mut regions = Vec::with_capacity(size);
+    for _ in 0..size {
+        regions.push(Vec::with_capacity(size));
+    }
+    for (i, idx) in region_numbers.iter().enumerate() {
+        regions[*idx].push(i);
+    }
+    Board::new_with_regions(size, max_val, regions)
+}
+
 /// Place the digit `value` in the puzzle at location `idx`.
 ///
 /// # Errors
