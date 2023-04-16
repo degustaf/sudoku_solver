@@ -2,6 +2,7 @@ var sourcesIndex = JSON.parse('{\
 "anstream":["",[["adapter",[],["mod.rs","strip.rs","wincon.rs"]]],["auto.rs","buffer.rs","lib.rs","lockable.rs","macros.rs","raw.rs","strip.rs"]],\
 "anstyle":["",[],["color.rs","effect.rs","lib.rs","macros.rs","reset.rs","style.rs"]],\
 "anstyle_parse":["",[["state",[],["definitions.rs","mod.rs","table.rs"]]],["lib.rs","params.rs"]],\
+"arrayvec":["",[],["array_string.rs","arrayvec.rs","arrayvec_impl.rs","char.rs","errors.rs","lib.rs","utils.rs"]],\
 "base64":["",[["read",[],["decoder.rs","mod.rs"]],["write",[],["encoder.rs","encoder_string_writer.rs","mod.rs"]]],["chunked_encoder.rs","decode.rs","display.rs","encode.rs","lib.rs","tables.rs"]],\
 "bitflags":["",[],["lib.rs"]],\
 "bitvec":["",[["array",[],["api.rs","iter.rs","ops.rs","traits.rs"]],["boxed",[],["api.rs","iter.rs","ops.rs","traits.rs"]],["field",[],["io.rs"]],["macros",[],["internal.rs"]],["ptr",[],["addr.rs","proxy.rs","range.rs","single.rs","span.rs"]],["slice",[["specialization",[],["lsb0.rs","msb0.rs"]]],["api.rs","iter.rs","ops.rs","specialization.rs","traits.rs"]],["vec",[],["api.rs","iter.rs","ops.rs","traits.rs"]]],["access.rs","array.rs","boxed.rs","devel.rs","domain.rs","field.rs","index.rs","lib.rs","macros.rs","mem.rs","order.rs","ptr.rs","slice.rs","store.rs","vec.rs","view.rs"]],\
@@ -75,7 +76,7 @@ var sourcesIndex = JSON.parse('{\
 "socket2":["",[["sys",[],["unix.rs"]]],["lib.rs","sockaddr.rs","socket.rs","sockref.rs"]],\
 "strsim":["",[],["lib.rs"]],\
 "sudoku_engine":["",[["types",[],["board.rs","iter.rs"]]],["lib.rs","types.rs"]],\
-"sudoku_solver":["",[],["main.rs"]],\
+"sudoku_solver":["",[],["build_irregular.rs","main.rs"]],\
 "tap":["",[],["conv.rs","lib.rs","pipe.rs","tap.rs"]],\
 "thiserror":["",[],["aserror.rs","display.rs","lib.rs"]],\
 "thiserror_impl":["",[],["ast.rs","attr.rs","expand.rs","fmt.rs","generics.rs","lib.rs","prop.rs","valid.rs"]],\

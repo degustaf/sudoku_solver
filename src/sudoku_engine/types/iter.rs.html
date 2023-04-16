@@ -115,6 +115,7 @@
 <a href="#115" id="115">115</a>
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
 </pre><pre class="rust"><code><span class="doccomment">/// Implementation of the solution iterator. This iterator is used to generate solutions to given
 /// puzzle. This provides the core engine used to find **a** solution, and to count solutions.
 </span><span class="kw">use </span><span class="kw">crate</span>::Board;
@@ -141,7 +142,7 @@
                     }
                 }
                 <span class="prelude-val">Some</span>(next_idx) =&gt; {
-                    <span class="kw">let </span>values: Vec&lt;usize&gt; = board.get_values(next_idx).iter_ones().collect();
+                    <span class="kw">let </span>values = board.iter_ones(next_idx);
                     <span class="self">Self </span>{
                         stack: <span class="macro">vec!</span>[(board, next_idx, values)],
                     }
@@ -185,7 +186,7 @@
                     <span class="kw">continue</span>;
                 }
                 <span class="prelude-val">Some</span>(idx) =&gt; {
-                    <span class="kw">let </span>new_values: Vec&lt;usize&gt; = board.get_values(idx).iter_ones().collect();
+                    <span class="kw">let </span>new_values = board.iter_ones(idx);
                     <span class="self">self</span>.stack.push((board, idx, new_values));
                 }
             }
@@ -207,6 +208,7 @@
         <span class="macro">assert!</span>(res.is_ok());
         <span class="kw">let </span>board = res.unwrap();
         <span class="kw">let </span>iter = SolutionIterator::new(<span class="kw-2">&amp;</span>board);
+        <span class="macro">eprintln!</span>(<span class="string">&quot;Iter created&quot;</span>);
         <span class="macro">assert_eq!</span>(iter.count(), <span class="number">78</span>);
     }
 

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["SUDOKU_COUNT","This array has the number of solved grids in a sudoku of a given size, up to permuting the digits."]],"fn":[["build_irregular",""],["print_regions",""]],"struct":[["Partition",""]]};
