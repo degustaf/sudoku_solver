@@ -9,7 +9,7 @@ use std::error::Error;
 use std::fmt::Display;
 
 /// Errors that can be generated when working with Yin-Yang puzzles.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum YinYangError {
     /// The dimensions provided for a yin-yang puzzle doesn't match the length of the string
     /// representation.
@@ -17,6 +17,9 @@ pub enum YinYangError {
 
     /// A character used in the string representation of a yin-yang puzzle is invalid.
     BadEncoding(char),
+
+    /// The puzzle has a contradiction in it.
+    Contradiction,
 }
 
 impl Display for YinYangError {
@@ -30,6 +33,9 @@ impl Display for YinYangError {
                     f,
                     "Can't encode '{c}' as shaded or unshaded in a yin-yang puzzle."
                 )
+            }
+            YinYangError::Contradiction => {
+                write!(f, "Puzzle has a contradiction.")
             }
         }
     }
@@ -153,6 +159,47 @@ impl YinYang {
             Deduction::Same
         }
     }
+
+    #[allow(dead_code)]
+    fn checkerboard(&mut self, idx: usize) -> Result<Deduction, YinYangError> {
+        debug_assert!(idx % self.width != self.width - 1); // So out algorithm won't go off the right edge of the puzzle.
+        debug_assert!(idx + self.width < self.data.len()); // So our algorithm won't go off the bottom edge of the puzzle.
+
+        // The small part of the grid we're looking at is:
+        // cell1 cell2
+        // cell3 cell4
+        let cell1 = self.data[idx];
+        let cell2 = self.data[idx + 1];
+        let cell3 = self.data[idx + self.width];
+        let cell4 = self.data[idx + self.width + 1];
+
+        if cell1 == cell4 {
+            let other_color = 3 - cell1;
+            if cell2 == cell3 {
+                if cell2 == other_color {
+                    return Err(YinYangError::Contradiction);
+                }
+            }
+            if cell2 == other_color && cell3 == 0 {
+                self.data[idx + self.width] = cell1; // Set cell3 to cell1.
+                return Ok(Deduction::Deduction);
+            } else if cell3 == other_color && cell2 == 0 {
+                self.data[idx + 1] = cell1; // Set cell2 to cell1.
+                return Ok(Deduction::Deduction);
+            }
+        } else if cell2 == cell3 {
+            let other_color = 3 - cell2;
+            if cell1 == other_color && cell4 == 0 {
+                self.data[idx + self.width + 1] = cell2; // Set cell4 to cell2.
+                return Ok(Deduction::Deduction);
+            } else if cell4 == other_color && cell1 == 0 {
+                self.data[idx] = cell2; // Set cell1 to cell2.
+                return Ok(Deduction::Deduction);
+            }
+        }
+
+        Ok(Deduction::Same)
+    }
 }
 
 #[cfg(test)]
@@ -189,9 +236,43 @@ mod tests {
     fn two_by_two() {
         let mut yy = YinYang::from_string(5, 2, "0001112202").unwrap();
         assert_eq!(yy.two_by_two(0), Deduction::Same);
+
         assert_eq!(yy.two_by_two(2), Deduction::Deduction);
-        assert_eq!(yy.data[2],2);
+        assert_eq!(yy.data[2], 2);
+
         assert_eq!(yy.two_by_two(6), Deduction::Deduction);
-        assert_eq!(yy.data[8],1);
+        assert_eq!(yy.data[8], 1);
+    }
+
+    #[test]
+    fn checkerboard() {
+        let mut yy = YinYang::from_string(8, 2, "0112210210211000").unwrap();
+        let mut response = yy.checkerboard(0);
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), Deduction::Deduction);
+        assert_eq!(yy.data[0], 1);
+
+        response = yy.checkerboard(2);
+        assert!(response.is_err());
+        assert_eq!(response.unwrap_err(), YinYangError::Contradiction);
+
+        response = yy.checkerboard(4);
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), Deduction::Deduction);
+        assert_eq!(yy.data[6], 2);
+
+        response = yy.checkerboard(8);
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), Deduction::Deduction);
+        assert_eq!(yy.data[9], 1);
+
+        response = yy.checkerboard(10);
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), Deduction::Deduction);
+        assert_eq!(yy.data[13], 1);
+
+        response = yy.checkerboard(12);
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), Deduction::Same);
     }
 }
