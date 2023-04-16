@@ -7,6 +7,7 @@
 
 use std::error::Error;
 use std::fmt::Display;
+use std::ops::BitAndAssign;
 
 /// Errors that can be generated when working with Yin-Yang puzzles.
 #[derive(Debug, PartialEq)]
@@ -51,6 +52,14 @@ pub enum Deduction {
 
     /// The strategy failed to set any cells in the puzzle.
     Same,
+}
+
+impl BitAndAssign for Deduction {
+    fn bitand_assign(&mut self, rhs: Self) {
+        if rhs == Deduction::Deduction {
+            *self = rhs;
+        }
+    }
 }
 
 /// A representation of a yin-yang puzzle.
@@ -128,7 +137,6 @@ impl YinYang {
         Ok(yy)
     }
 
-    #[allow(dead_code)]
     fn two_by_two(&mut self, idx: usize) -> Deduction {
         debug_assert!(idx % self.width != self.width - 1); // So out algorithm won't go off the right edge of the puzzle.
         debug_assert!(idx + self.width < self.data.len()); // So our algorithm won't go off the bottom edge of the puzzle.
@@ -161,6 +169,17 @@ impl YinYang {
     }
 
     #[allow(dead_code)]
+    fn two_by_two_all(&mut self) -> Deduction {
+        let mut ret = Deduction::Same;
+
+        for i in 0..self.height - 1 {
+            for j in 0..self.width - 1 {
+                ret &= self.two_by_two(i * self.width + j);
+            }
+        }
+        ret
+    }
+
     fn checkerboard(&mut self, idx: usize) -> Result<Deduction, YinYangError> {
         debug_assert!(idx % self.width != self.width - 1); // So out algorithm won't go off the right edge of the puzzle.
         debug_assert!(idx + self.width < self.data.len()); // So our algorithm won't go off the bottom edge of the puzzle.
@@ -200,11 +219,56 @@ impl YinYang {
 
         Ok(Deduction::Same)
     }
+
+    #[allow(dead_code)]
+    fn checkerboard_all(&mut self) -> Result<Deduction, YinYangError> {
+        let mut ret = Deduction::Same;
+
+        for i in 0..self.height - 1 {
+            for j in 0..self.width - 1 {
+                ret &= self.checkerboard(i * self.width + j)?;
+            }
+        }
+        Ok(ret)
+    }
+
+    #[allow(dead_code)]
+    fn deduce(&mut self) -> Result<Deduction, YinYangError> {
+        let mut ret = Deduction::Same;
+        loop {
+            while self.two_by_two_all() == Deduction::Deduction {
+                ret = Deduction::Deduction;
+            }
+            if self.checkerboard_all()? == Deduction::Same {
+                break;
+            }
+            ret = Deduction::Deduction;
+        }
+
+        Ok(ret)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn deduction_bitand() {
+        let mut deduc = Deduction::Same;
+
+        deduc &= Deduction::Same;
+        assert_eq!(deduc, Deduction::Same);
+
+        deduc &= Deduction::Deduction;
+        assert_eq!(deduc, Deduction::Deduction);
+
+        deduc &= Deduction::Same;
+        assert_eq!(deduc, Deduction::Deduction);
+
+        deduc &= Deduction::Deduction;
+        assert_eq!(deduc, Deduction::Deduction);
+    }
 
     #[test]
     fn make_new() {
@@ -274,5 +338,30 @@ mod tests {
         response = yy.checkerboard(12);
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), Deduction::Same);
+    }
+
+    #[test]
+    fn two_by_two_all() {
+        let mut yy = YinYang::from_string(3, 4, "110010000220").unwrap();
+        let response = yy.two_by_two_all();
+        assert_eq!(response, Deduction::Deduction);
+        assert_eq!(format!("{}", yy), "1 1 0 0 \n1 2 1 0 \n0 2 2 0 \n");
+    }
+
+    #[test]
+    fn checkerboard_all() {
+        let mut yy = YinYang::from_string(3, 4, "121220010120").unwrap();
+        let response = yy.checkerboard_all();
+        assert!(response.is_err());
+        assert_eq!(response.unwrap_err(), YinYangError::Contradiction);
+    }
+
+    #[test]
+    fn deduce() {
+        let mut yy = YinYang::from_string(3, 3, "100112100").unwrap();
+        let response = yy.deduce();
+        assert!(response.is_ok());
+        assert_eq!(response.unwrap(), Deduction::Deduction);
+        assert_eq!(format!("{}", yy), "1 2 2 \n1 1 2 \n1 2 2 \n");
     }
 }
