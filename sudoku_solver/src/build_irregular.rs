@@ -1,10 +1,8 @@
 //! An interface
 
 use arrayvec::ArrayVec;
-use std::fs::File;
 use std::io::stdout;
 use std::io::Write;
-use std::path::Path;
 
 struct Partition {
     size: usize,
@@ -37,7 +35,7 @@ impl std::iter::Iterator for Partition {
     type Item = ArrayVec<usize, { Self::CAPACITY }>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.data.len() == 0 {
+        if self.data.is_empty() {
             for i in 0..self.size {
                 for _ in 0..self.size {
                     self.data.push(i);
@@ -123,18 +121,10 @@ fn print_regions<T: std::io::Write>(mut file: &mut T, rng: &[usize]) -> std::io:
     for i in rng {
         write!(&mut file, "{i} ")?;
     }
-    write!(&mut file, "]\n")
+    writeln!(&mut file, "]")
 }
 
-pub(crate) fn build_irregular(size: usize, out_file: &Path, start: Option<&[usize]>) {
-    let mut file = match File::options().create(true).append(true).open(out_file) {
-        Ok(file) => file,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            return;
-        }
-    };
-
+pub(crate) fn build_irregular<T: std::io::Write>(size: usize, file: &mut T, start: Option<&[usize]>) {
     let iter = Partition::new(size, start);
     let target_count = SUDOKU_COUNT[size];
     let mut iter_count = 0;
@@ -143,14 +133,14 @@ pub(crate) fn build_irregular(size: usize, out_file: &Path, start: Option<&[usiz
     'range_loop: for rngs in iter {
         if let Ok(mut b) = sudoku_engine::from_regions(size, size, &rngs) {
             for i in 0..size {
-                if sudoku_engine::assign(&mut b, i, i+1).is_err() {
+                if sudoku_engine::assign(&mut b, i, i + 1).is_err() {
                     break 'range_loop;
                 }
             }
             let count = b.solution_count_max(target_count);
             if count > 0 && count <= target_count {
-                write!(&mut file, "{count}\n").unwrap();
-                print_regions(&mut file, &rngs).unwrap();
+                writeln!(file, "{count}").unwrap();
+                print_regions(file, &rngs).unwrap();
                 print_regions(&mut std_out, &rngs).unwrap();
                 iter_count += 1;
             }
@@ -163,6 +153,8 @@ pub(crate) fn build_irregular(size: usize, out_file: &Path, start: Option<&[usiz
     }
     println!("{iter_count} / {total_count}");
 }
+
+// sudoku_solver/src/build_irregular.rs: 19, 119-122, 124, 127-137, 140-145, 147-150, 154
 
 #[cfg(test)]
 mod test {

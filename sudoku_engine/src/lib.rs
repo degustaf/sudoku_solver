@@ -42,6 +42,15 @@ pub fn from_string(repr: &str) -> Result<Board, SudokuErrors> {
 }
 
 /// Create a puzzle from a slice that contains the region number for each index.
+///
+/// # Errors
+///
+/// This function will return an error if
+/// - The length of `region_numbers` isn't a square number
+/// - The length of `region_numbers` is 0
+/// - The length of `region_numbers` is greater than `MAX_SIZE` squared.
+/// - The length of `region_numbers` is greater than `max_val` squared.
+/// - `max_val` is greater than 32.
 pub fn from_regions(
     size: usize,
     max_val: usize,

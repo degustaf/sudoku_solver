@@ -217,7 +217,7 @@ impl Board {
 
         let mut columns = Vec::with_capacity(size);
         for c in 0..size {
-           columns.push((c..size * size).step_by(size).collect());
+            columns.push((c..size * size).step_by(size).collect());
         }
 
         Ok(Board {
@@ -268,7 +268,7 @@ impl Board {
 
     /// The boils down to left shifting and subtracting. It is off by one from what is expected,
     /// because we are not using the 0th bit.
-    /// eq. If max_val is 9, then we are doing 1 << 10 - 2 = 0111_1111_11
+    /// eq. If `max_val` is 9, then we are doing 1 << 10 - 2 = `0111_1111_11`
     fn empty_cell(max_val: usize) -> Result<Bits, SudokuErrors> {
         let mut full: Bits = 1;
         if usize::BITS as usize <= max_val {
@@ -420,10 +420,7 @@ impl Board {
         Ok(ret)
     }
 
-    fn hidden_singles_helper (
-        &mut self,
-        unit: &[usize]
-    ) -> Result<Elimination, Contradiction> {
+    fn hidden_singles_helper(&mut self, unit: &[usize]) -> Result<Elimination, Contradiction> {
         let mut ret = Elimination::Same;
         let cells: Vec<(usize, Bits)> = unit.iter().map(|idx| (*idx, self.grid[*idx])).collect();
         for i in 1..=self.meta.max_val {
@@ -468,7 +465,7 @@ impl Board {
         Ok(ret)
     }
 
-    fn naked_tuple_helper (
+    fn naked_tuple_helper(
         &mut self,
         n: usize,
         unit: &[usize],
@@ -527,19 +524,20 @@ impl Board {
         let meta = self.meta.clone();
         // rows
         for r in &meta.rows {
-            ret &= self.naked_tuple_helper(n, &r)?;
+            ret &= self.naked_tuple_helper(n, r)?;
         }
         // columns
         for c in &meta.columns {
-            ret &= self.naked_tuple_helper(n, &c)?;
+            ret &= self.naked_tuple_helper(n, c)?;
         }
         // regions
         for reg in &meta.regions {
-            ret &= self.naked_tuple_helper(n, &reg)?;
+            ret &= self.naked_tuple_helper(n, reg)?;
         }
         Ok(ret)
     }
 
+    /*
     #[allow(dead_code)]
     fn hidden_tuples_helper<T: Iterator<Item = usize>>(
         &mut self,
@@ -549,6 +547,7 @@ impl Board {
         let ret = Elimination::Same;
         Ok(ret)
     }
+    */
 
     pub(crate) fn next_idx_to_guess(&self) -> Option<usize> {
         let mut count = self.meta.size + 1;
