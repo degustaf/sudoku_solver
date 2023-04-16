@@ -168,7 +168,8 @@ impl YinYang {
         }
     }
 
-    #[allow(dead_code)]
+    /// By the rules of yin-yang, you cannot have a 2 by 2 of either shaded or unshaded cells. This
+    /// checks for those possibilities, and fills in empty cells in such a way to prevent a 2 by 2.
     fn two_by_two_all(&mut self) -> Deduction {
         let mut ret = Deduction::Same;
 
@@ -220,7 +221,14 @@ impl YinYang {
         Ok(Deduction::Same)
     }
 
-    #[allow(dead_code)]
+    /// A checkerboard is an indication of a broken yin-yang. There is a connectivity argument that
+    /// if there is a checkerboard, then either shaded, or unshaded cannot be connected. This
+    /// function checks the board for possible checkerboards, and fills in cells to prevent a
+    /// checkerboard.
+    ///
+    /// # Errors
+    ///
+    /// This function can return an error if there is a contradiction.
     fn checkerboard_all(&mut self) -> Result<Deduction, YinYangError> {
         let mut ret = Deduction::Same;
 
@@ -247,6 +255,12 @@ impl YinYang {
 
         Ok(ret)
     }
+}
+
+/// An iterator that will generate solutions to the puzzle.
+#[allow(dead_code)]
+pub struct SolutionIterator {
+    stack: Vec<(YinYang, usize, u8)>,
 }
 
 #[cfg(test)]
