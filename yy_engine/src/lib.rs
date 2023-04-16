@@ -1,0 +1,197 @@
+//! A library for solving Yin-Yang  puzzles
+//!
+//! # Rules
+//!
+//! Shade the grid 2 colors such that all cells of each cell are connected orthoganally and no 2 by
+//! 2 region is completely shaded either color.
+
+use std::error::Error;
+use std::fmt::Display;
+
+/// Errors that can be generated when working with Yin-Yang puzzles.
+#[derive(Debug)]
+pub enum YinYangError {
+    /// The dimensions provided for a yin-yang puzzle doesn't match the length of the string
+    /// representation.
+    BadDimensions(usize, usize, usize),
+
+    /// A character used in the string representation of a yin-yang puzzle is invalid.
+    BadEncoding(char),
+}
+
+impl Display for YinYangError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            YinYangError::BadDimensions(height, width, length) => {
+                write!(f, "Bad dimensions: height is {height} and width is {width}, but length of the string representation is {length}.")
+            }
+            YinYangError::BadEncoding(c) => {
+                write!(
+                    f,
+                    "Can't encode '{c}' as shaded or unshaded in a yin-yang puzzle."
+                )
+            }
+        }
+    }
+}
+
+impl Error for YinYangError {}
+
+/// Tracks if a strategy is sucessful.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Deduction {
+    /// The strategy succeeded in setting a cell in the puzzle.
+    Deduction,
+
+    /// The strategy failed to set any cells in the puzzle.
+    Same,
+}
+
+/// A representation of a yin-yang puzzle.
+#[derive(Debug)]
+pub struct YinYang {
+    height: usize,
+    width: usize,
+    data: Vec<usize>,
+}
+
+impl Display for YinYang {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        for i in 0..self.height {
+            for j in 0..self.width {
+                write!(f, "{} ", self.data[i * self.width + j])?;
+            }
+            writeln!(f, "")?;
+        }
+        Ok(())
+    }
+}
+
+impl YinYang {
+    /// Generate an empty yin-yang puzzle of dimensions `height` by `width`.
+    #[must_use]
+    pub fn new(height: usize, width: usize) -> Self {
+        YinYang {
+            height,
+            width,
+            data: vec![0; height * width],
+        }
+    }
+
+    /// Generate a puzzle from a string representation of a yin-yang puzzle.
+    ///
+    /// # Errors
+    ///
+    /// This function can throw an error if either `height` and `width` do not match the length of `repr`
+    /// or the string contains characters other than `0` for empty, `1` for shaded or `2` for unshaded.
+    ///
+    /// ```
+    /// use yy_engine::YinYang;
+    ///
+    /// let yy = YinYang::from_string(3, 3, "012000000");
+    /// assert!(yy.is_ok());
+    ///
+    /// let bad_yy = YinYang::from_string(3, 3, "10");
+    /// assert!(bad_yy.is_err());
+    ///
+    /// let other_bad_yy = YinYang::from_string(3, 3, "012000005");
+    /// assert!(bad_yy.is_err());
+    /// ```
+    pub fn from_string(height: usize, width: usize, repr: &str) -> Result<YinYang, YinYangError> {
+        if height * width != repr.len() {
+            return Err(YinYangError::BadDimensions(height, width, repr.len()));
+        }
+
+        let mut yy = Self::new(height, width);
+
+        for (i, c) in repr.char_indices() {
+            match c {
+                '0' => {}
+                '1' => {
+                    yy.data[i] = 1;
+                }
+                '2' => {
+                    yy.data[i] = 2;
+                }
+                _ => {
+                    return Err(YinYangError::BadEncoding(c));
+                }
+            }
+        }
+
+        Ok(yy)
+    }
+
+    #[allow(dead_code)]
+    fn two_by_two(&mut self, idx: usize) -> Deduction {
+        debug_assert!(idx % self.width != self.width - 1); // So out algorithm won't go off the right edge of the puzzle.
+        debug_assert!(idx + self.width < self.data.len()); // So our algorithm won't go off the bottom edge of the puzzle.
+
+        let mut ones_count = 0;
+        let mut twos_count = 0;
+        let mut zero_idx = usize::MAX;
+
+        for offset in [0, 1, self.width, self.width + 1] {
+            let new_idx = idx + offset;
+            if self.data[new_idx] == 1 {
+                ones_count += 1;
+            } else if self.data[new_idx] == 2 {
+                twos_count += 1;
+            } else {
+                // self.data[new_idx] == 0
+                zero_idx = new_idx;
+            }
+        }
+
+        if ones_count == 3 && twos_count == 0 {
+            self.data[zero_idx] = 2;
+            Deduction::Deduction
+        } else if twos_count == 3 && ones_count == 0 {
+            self.data[zero_idx] = 1;
+            Deduction::Deduction
+        } else {
+            Deduction::Same
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn make_new() {
+        let yy = YinYang::new(13, 42);
+        assert_eq!(yy.height, 13);
+        assert_eq!(yy.width, 42);
+        assert_eq!(yy.data.len(), 13 * 42);
+    }
+
+    #[test]
+    fn from_string_doctest() {
+        let yy = YinYang::from_string(3, 3, "012000000");
+        assert!(yy.is_ok());
+        assert_eq!(format!("{}", yy.unwrap()), "0 1 2 \n0 0 0 \n0 0 0 \n");
+
+        let bad_yy = YinYang::from_string(3, 3, "10");
+        assert!(bad_yy.is_err());
+        assert_eq!(format!("{}", bad_yy.unwrap_err()), "Bad dimensions: height is 3 and width is 3, but length of the string representation is 2.");
+
+        let other_bad_yy = YinYang::from_string(3, 3, "012000005");
+        assert!(other_bad_yy.is_err());
+        assert_eq!(
+            format!("{}", other_bad_yy.unwrap_err()),
+            "Can't encode '5' as shaded or unshaded in a yin-yang puzzle."
+        );
+    }
+
+    #[test]
+    fn two_by_two() {
+        let mut yy = YinYang::from_string(5, 2, "0001112202").unwrap();
+        assert_eq!(yy.two_by_two(0), Deduction::Same);
+        assert_eq!(yy.two_by_two(2), Deduction::Deduction);
+        assert_eq!(yy.data[2],2);
+        assert_eq!(yy.two_by_two(6), Deduction::Deduction);
+        assert_eq!(yy.data[8],1);
+    }
+}

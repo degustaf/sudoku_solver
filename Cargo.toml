@@ -4,6 +4,7 @@ members = [
   "listener",
   "sudoku_engine",
   "sudoku_solver",
+  "yy_engine",
 ]
 
 [profile.release]
