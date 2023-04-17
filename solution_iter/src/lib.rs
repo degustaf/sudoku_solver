@@ -1,6 +1,8 @@
 //! Implementation of the solution iterator. This iterator is used to generate solutions to given
 //! puzzle. This provides the core engine used to find **a** solution, and to count solutions.
 
+use std::ops::BitOrAssign;
+
 /// A common trait for puzzles that can be solved using a depth first search.
 pub trait Solvable: Clone {
     /// The type that is used to describe a guess as used in the `assign` function.
@@ -101,3 +103,21 @@ impl<T: Solvable> std::iter::Iterator for SolutionIterator<T> {
     }
 }
 
+/// Compute all possible values that can be placed in any index for a puzzle.
+///
+/// `BitOrAssign` is used to combine multiple solutions and retain what possibilities are available
+/// at each index.
+///
+/// This uses a depth first search and may not be appropriate for puzzles with large branching
+/// factors that have many solutions available.
+pub fn true_candidates_dfs<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
+    let mut iter = SolutionIterator::new(puzzle);
+    let Some(mut ret) = iter.next() else {
+        return None;
+    };
+    for sln in iter {
+        ret |= sln;
+    }
+
+    Some(ret)
+}

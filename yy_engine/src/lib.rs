@@ -5,9 +5,13 @@
 //! Shade the grid 2 colors such that all cells of each cell are connected orthoganally and no 2 by
 //! 2 region is completely shaded either color.
 
+use solution_iter::Solvable;
+use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::Display;
 use std::ops::BitAndAssign;
+use std::ops::BitOrAssign;
 
 /// Errors that can be generated when working with Yin-Yang puzzles.
 #[derive(Debug, PartialEq)]
@@ -63,7 +67,7 @@ impl BitAndAssign for Deduction {
 }
 
 /// A representation of a yin-yang puzzle.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct YinYang {
     height: usize,
     width: usize,
@@ -239,6 +243,98 @@ impl YinYang {
     }
 
     #[allow(dead_code)]
+    fn adjacent_cells(&self, idx: usize) -> (usize, [usize; 4]) {
+        let mut ret = [0, 0, 0, 0];
+        let mut count = 0;
+
+        let x = idx / self.width;
+        let y = idx % self.width;
+
+        if x > 0 {
+            ret[count] = idx - self.width;
+            count += 1;
+        }
+        if y > 0 {
+            ret[count] = idx - 1;
+            count += 1;
+        }
+        if y < self.width - 1 {
+            ret[count] = idx + 1;
+            count += 1;
+        }
+        if x < self.height - 1 {
+            ret[count] = idx + self.width;
+            count += 1;
+        }
+
+        (count, ret)
+    }
+
+    fn check_helper(&self, color: usize) -> bool {
+        let mut shaded_queue = VecDeque::with_capacity(self.data.len() / 2);
+        for (i, v) in self.data.iter().enumerate() {
+            if *v == color {
+                shaded_queue.push_back(i);
+                break;
+            }
+        }
+        let mut shaded = HashSet::with_capacity(self.data.len() / 2);
+        let mut way_out = false;
+        while !shaded_queue.is_empty() {
+            let i = shaded_queue.pop_front().unwrap(); // This unwrap is safe because we've just checked that queue isn't empty.
+            shaded.insert(i);
+            let (count, adjacent) = self.adjacent_cells(i);
+            for new_idx in adjacent.iter().take(count) {
+                if shaded.contains(new_idx) {
+                    continue;
+                }
+                if self.data[*new_idx] == 0 {
+                    way_out = true;
+                } else if self.data[*new_idx] == color {
+                    shaded_queue.push_back(*new_idx);
+                }
+            }
+        }
+        if !way_out {
+            for (idx, v) in self.data.iter().enumerate() {
+                if *v == color && !shaded.contains(&idx) {
+                    // No way to reach other cells that are the same color. We're broken.
+                    return false;
+                }
+            }
+        }
+
+        // Nothing appears to be wrong with the puzzle.
+        true
+    }
+
+    fn check_two_by_two(&self) -> bool {
+        for i in 0..self.height - 1 {
+            for j in 0..self.width - 1 {
+                let idx = i * self.width + j;
+                let mut ones_count = 0;
+                let mut twos_count = 0;
+                for offset in [0, 1, self.width, self.width + 1] {
+                    let new_idx = idx + offset;
+                    if self.data[new_idx] == 1 {
+                        ones_count += 1;
+                    } else if self.data[new_idx] == 2 {
+                        twos_count += 1;
+                    }
+                }
+                if ones_count == 4 || twos_count == 4 {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    #[must_use]
+    fn check(&self) -> bool {
+        self.check_helper(1) && self.check_helper(2) && self.check_two_by_two()
+    }
+
     fn deduce(&mut self) -> Result<Deduction, YinYangError> {
         let mut ret = Deduction::Same;
         loop {
@@ -255,10 +351,51 @@ impl YinYang {
     }
 }
 
-/// An iterator that will generate solutions to the puzzle.
-#[allow(dead_code)]
-pub struct SolutionIterator {
-    stack: Vec<(YinYang, usize, u8)>,
+impl Solvable for YinYang {
+    type Guess = usize;
+
+    fn assign(&mut self, idx: usize, g: <Self as Solvable>::Guess) -> bool {
+        self.data[idx] = g;
+        self.check()
+    }
+
+    fn deduce(&mut self) -> bool {
+        self.deduce().is_ok()
+    }
+
+    fn next_idx_to_guess(&self) -> Option<usize> {
+        for (i, v) in self.data.iter().enumerate() {
+            if *v == 0 {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    fn guesses(&self, _: usize) -> Vec<<Self as Solvable>::Guess> {
+        vec![1, 2]
+    }
+
+    fn solved(&self) -> bool {
+        for v in &self.data {
+            if *v == 0 {
+                return false;
+            }
+        }
+
+        self.check()
+    }
+}
+
+impl BitOrAssign for YinYang {
+    fn bitor_assign(&mut self, rhs: Self) {
+        debug_assert_eq!(self.height, rhs.height);
+        debug_assert_eq!(self.width, rhs.width);
+
+        for (i, v) in self.data.iter_mut().enumerate() {
+            *v |= rhs.data[i];
+        }
+    }
 }
 
 #[cfg(test)]
@@ -375,5 +512,16 @@ mod tests {
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), Deduction::Deduction);
         assert_eq!(format!("{yy}"), "1 2 2 \n1 1 2 \n1 2 2 \n");
+    }
+
+    #[test]
+    fn yy_true_candidates() {
+        let yy = YinYang::from_string(4, 4, "0020000020010000").unwrap();
+        let tc = solution_iter::true_candidates_dfs(&yy);
+        assert!(tc.is_some());
+        assert_eq!(
+            format!("{}", tc.unwrap()),
+            "2 2 2 3 \n2 1 3 1 \n2 3 3 1 \n3 3 3 3 \n"
+        );
     }
 }

@@ -1130,3 +1130,6 @@ dependencies = [
 [[package]]
 name = "yy_engine"
 version = "0.1.0"
+dependencies = [
+ "solution_iter",
+]
