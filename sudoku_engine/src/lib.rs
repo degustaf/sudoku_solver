@@ -3,10 +3,10 @@
 #![warn(missing_docs)]
 mod types;
 
-use types::board::Bits;
-pub use types::board::Board;
-use types::board::Elimination;
-pub use types::board::SudokuErrors;
+use types::Bits;
+pub use types::Board;
+use types::Elimination;
+pub use types::SudokuErrors;
 
 /// Convert a string of digits into the associated Board.
 ///
@@ -32,7 +32,7 @@ pub fn from_string(repr: &str) -> Result<Board, SudokuErrors> {
         digits[i] = if let Some(d) = c.to_digit(16) {
             let x = usize::try_from(d)?;
             max_val = usize::max(max_val, x);
-            Some(types::board::to_bits(x))
+            Some(types::to_bits(x))
         } else {
             None
         }

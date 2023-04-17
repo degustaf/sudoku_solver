@@ -76,7 +76,7 @@ impl Display for YinYang {
             for j in 0..self.width {
                 write!(f, "{} ", self.data[i * self.width + j])?;
             }
-            writeln!(f, "")?;
+            writeln!(f)?;
         }
         Ok(())
     }
@@ -195,10 +195,8 @@ impl YinYang {
 
         if cell1 == cell4 {
             let other_color = 3 - cell1;
-            if cell2 == cell3 {
-                if cell2 == other_color {
-                    return Err(YinYangError::Contradiction);
-                }
+            if cell2 == cell3 && cell2 == other_color {
+                return Err(YinYangError::Contradiction);
             }
             if cell2 == other_color && cell3 == 0 {
                 self.data[idx + self.width] = cell1; // Set cell3 to cell1.
@@ -359,7 +357,7 @@ mod tests {
         let mut yy = YinYang::from_string(3, 4, "110010000220").unwrap();
         let response = yy.two_by_two_all();
         assert_eq!(response, Deduction::Deduction);
-        assert_eq!(format!("{}", yy), "1 1 0 0 \n1 2 1 0 \n0 2 2 0 \n");
+        assert_eq!(format!("{yy}"), "1 1 0 0 \n1 2 1 0 \n0 2 2 0 \n");
     }
 
     #[test]
@@ -376,6 +374,6 @@ mod tests {
         let response = yy.deduce();
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), Deduction::Deduction);
-        assert_eq!(format!("{}", yy), "1 2 2 \n1 1 2 \n1 2 2 \n");
+        assert_eq!(format!("{yy}"), "1 2 2 \n1 1 2 \n1 2 2 \n");
     }
 }

@@ -722,6 +722,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "solution_iter"
+version = "0.1.0"
+dependencies = [
+ "sudoku_engine",
+]
+
+[[package]]
 name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -735,6 +742,7 @@ dependencies = [
  "f_puzzles",
  "itertools",
  "rayon",
+ "solution_iter",
  "tokio",
  "tokio-util",
 ]

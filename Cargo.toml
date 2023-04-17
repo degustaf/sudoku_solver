@@ -2,6 +2,7 @@
 members = [
   "f_puzzles",
   "listener",
+  "solution_iter",
   "sudoku_engine",
   "sudoku_solver",
   "yy_engine",

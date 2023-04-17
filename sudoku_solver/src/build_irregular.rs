@@ -124,7 +124,11 @@ fn print_regions<T: std::io::Write>(mut file: &mut T, rng: &[usize]) -> std::io:
     writeln!(&mut file, "]")
 }
 
-pub(crate) fn build_irregular<T: std::io::Write>(size: usize, file: &mut T, start: Option<&[usize]>) {
+pub(crate) fn build_irregular<T: std::io::Write>(
+    size: usize,
+    file: &mut T,
+    start: Option<&[usize]>,
+) {
     let iter = Partition::new(size, start);
     let target_count = SUDOKU_COUNT[size];
     let mut iter_count = 0;
