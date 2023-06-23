@@ -6,12 +6,13 @@
 //! 2 region is completely shaded either color.
 
 use solution_iter::Solvable;
-use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt::Display;
 use std::ops::BitAndAssign;
 use std::ops::BitOrAssign;
+use std::sync::Arc;
+use strength_reduce::StrengthReducedUsize;
 
 /// Errors that can be generated when working with Yin-Yang puzzles.
 #[derive(Debug, PartialEq)]
@@ -72,6 +73,8 @@ pub struct YinYang {
     height: usize,
     width: usize,
     data: Vec<usize>,
+    border: Arc<[usize]>,
+    divisor: StrengthReducedUsize,
 }
 
 impl Display for YinYang {
@@ -90,10 +93,26 @@ impl YinYang {
     /// Generate an empty yin-yang puzzle of dimensions `height` by `width`.
     #[must_use]
     pub fn new(height: usize, width: usize) -> Self {
+        let mut border = Vec::with_capacity(2 * height + 2 * width - 4);
+        for i in 0..width {
+            border.push(i);
+        }
+        for i in ((2 * width - 1)..(height * width)).step_by(width) {
+            border.push(i);
+        }
+        for i in ((height - 1) * width..(height * width) - 1).rev() {
+            border.push(i);
+        }
+        for i in (width..(height - 1) * width).step_by(width).rev() {
+            border.push(i);
+        }
+
         YinYang {
             height,
             width,
-            data: vec![0; height * width],
+            data: vec![3; height * width],
+            border: Arc::from(border),
+            divisor: StrengthReducedUsize::new(width),
         }
     }
 
@@ -142,7 +161,7 @@ impl YinYang {
     }
 
     fn two_by_two(&mut self, idx: usize) -> Deduction {
-        debug_assert!(idx % self.width != self.width - 1); // So out algorithm won't go off the right edge of the puzzle.
+        debug_assert!(idx % self.divisor != self.width - 1); // So out algorithm won't go off the right edge of the puzzle.
         debug_assert!(idx + self.width < self.data.len()); // So our algorithm won't go off the bottom edge of the puzzle.
 
         let mut ones_count = 0;
@@ -186,7 +205,7 @@ impl YinYang {
     }
 
     fn checkerboard(&mut self, idx: usize) -> Result<Deduction, YinYangError> {
-        debug_assert!(idx % self.width != self.width - 1); // So out algorithm won't go off the right edge of the puzzle.
+        debug_assert!(idx % self.divisor != self.width - 1); // So our algorithm won't go off the right edge of the puzzle.
         debug_assert!(idx + self.width < self.data.len()); // So our algorithm won't go off the bottom edge of the puzzle.
 
         // The small part of the grid we're looking at is:
@@ -202,19 +221,19 @@ impl YinYang {
             if cell2 == cell3 && cell2 == other_color {
                 return Err(YinYangError::Contradiction);
             }
-            if cell2 == other_color && cell3 == 0 {
+            if cell2 == other_color && cell3 == 3 {
                 self.data[idx + self.width] = cell1; // Set cell3 to cell1.
                 return Ok(Deduction::Deduction);
-            } else if cell3 == other_color && cell2 == 0 {
+            } else if cell3 == other_color && cell2 == 3 {
                 self.data[idx + 1] = cell1; // Set cell2 to cell1.
                 return Ok(Deduction::Deduction);
             }
         } else if cell2 == cell3 {
             let other_color = 3 - cell2;
-            if cell1 == other_color && cell4 == 0 {
+            if cell1 == other_color && cell4 == 3 {
                 self.data[idx + self.width + 1] = cell2; // Set cell4 to cell2.
                 return Ok(Deduction::Deduction);
-            } else if cell4 == other_color && cell1 == 0 {
+            } else if cell4 == other_color && cell1 == 3 {
                 self.data[idx] = cell2; // Set cell1 to cell2.
                 return Ok(Deduction::Deduction);
             }
@@ -243,12 +262,91 @@ impl YinYang {
     }
 
     #[allow(dead_code)]
-    fn adjacent_cells(&self, idx: usize) -> (usize, [usize; 4]) {
-        let mut ret = [0, 0, 0, 0];
+    fn deduce_border(&mut self) -> Result<Deduction, YinYangError> {
+        let mut ret = Deduction::Same;
+        let mut first_color = 3;
+        let mut first_color_idx = usize::MAX;
+        for (i, v) in self.border.iter().enumerate() {
+            if self.data[*v] != 3 {
+                first_color = self.data[*v];
+                first_color_idx = i;
+                break;
+            }
+        }
+        if first_color == 3 {
+            return Ok(ret);
+        }
+
+        let second_color = 3 - first_color;
+        let mut second_color_idx = usize::MAX;
+        for j in first_color_idx + 1..self.border.len() {
+            if self.data[self.border[j]] == second_color {
+                second_color_idx = j;
+                break;
+            }
+        }
+        if second_color_idx == usize::MAX {
+            return Ok(ret);
+        }
+
+        let mut last_first_color_idx = first_color_idx;
+        for i in first_color_idx + 1..second_color_idx {
+            debug_assert_ne!(self.data[self.border[i]], second_color);
+            if self.data[self.border[i]] == first_color {
+                for j in last_first_color_idx + 1..i {
+                    self.data[self.border[j]] = first_color;
+                    ret = Deduction::Deduction;
+                }
+                last_first_color_idx = i;
+            }
+        }
+
+        let mut last_second_color_idx = second_color_idx;
+        last_first_color_idx = 0;
+        for i in second_color_idx + 1..self.border.len() {
+            if self.data[self.border[i]] == first_color {
+                last_first_color_idx = i;
+                break;
+            }
+            if self.data[self.border[i]] == second_color {
+                for j in last_second_color_idx + 1..i {
+                    self.data[self.border[j]] = second_color;
+                    ret = Deduction::Deduction;
+                }
+                last_second_color_idx = i;
+            }
+        }
+
+        if last_first_color_idx != 0 {
+            for i in last_first_color_idx + 1..self.border.len() {
+                if self.data[self.border[i]] == second_color {
+                    return Err(YinYangError::Contradiction);
+                }
+                if self.data[self.border[i]] != first_color {
+                    self.data[self.border[i]] = first_color;
+                    ret = Deduction::Deduction;
+                }
+            }
+
+            for i in 0..first_color_idx {
+                if self.data[self.border[i]] == second_color {
+                    return Err(YinYangError::Contradiction);
+                }
+                if self.data[self.border[i]] != first_color {
+                    self.data[self.border[i]] = first_color;
+                    ret = Deduction::Deduction;
+                }
+            }
+        }
+
+        Ok(ret)
+    }
+
+    fn adjacent_cells(&self, idx: usize, ret: &mut [usize]) -> usize {
         let mut count = 0;
 
-        let x = idx / self.width;
-        let y = idx % self.width;
+        let x = idx / self.divisor;
+        let y = idx % self.divisor;
 
         if x > 0 {
             ret[count] = idx - self.width;
@@ -267,28 +365,36 @@ impl YinYang {
             count += 1;
         }
 
-        (count, ret)
+        count
     }
 
-    fn check_helper(&self, color: usize) -> bool {
-        let mut shaded_queue = VecDeque::with_capacity(self.data.len() / 2);
-        for (i, v) in self.data.iter().enumerate() {
-            if *v == color {
+    fn check_helper(
+        &self,
+        shaded: &mut [bool],
+        shaded_queue: &mut VecDeque<usize>,
+        color: usize,
+        starting_idx: usize,
+    ) -> bool {
+        for i in starting_idx..self.data.len() {
+            if self.data[i] == color {
                 shaded_queue.push_back(i);
                 break;
             }
         }
-        let mut shaded = HashSet::with_capacity(self.data.len() / 2);
+        if shaded_queue.is_empty() {
+            // we've checked every chunk of color, they all look okay.
+            return true;
+        }
         let mut way_out = false;
-        while !shaded_queue.is_empty() {
-            let i = shaded_queue.pop_front().unwrap(); // This unwrap is safe because we've just checked that queue isn't empty.
-            shaded.insert(i);
-            let (count, adjacent) = self.adjacent_cells(i);
+        let mut adjacent = [0; 4];
+        while let Some(i) = shaded_queue.pop_front() {
+            shaded[i] = true;
+            let count = self.adjacent_cells(i, &mut adjacent);
             for new_idx in adjacent.iter().take(count) {
-                if shaded.contains(new_idx) {
+                if shaded[*new_idx] {
                     continue;
                 }
-                if self.data[*new_idx] == 0 {
+                if self.data[*new_idx] == 3 {
                     way_out = true;
                 } else if self.data[*new_idx] == color {
                     shaded_queue.push_back(*new_idx);
@@ -297,14 +403,30 @@ impl YinYang {
         }
         if !way_out {
             for (idx, v) in self.data.iter().enumerate() {
-                if *v == color && !shaded.contains(&idx) {
+                if *v == color && !shaded[idx] {
                     // No way to reach other cells that are the same color. We're broken.
                     return false;
                 }
             }
         }
 
-        // Nothing appears to be wrong with the puzzle.
+        // Nothing appears to be wrong with this block
+        // for i in starting_idx..self.data.len() {
+        for (i, v) in shaded
+            .iter()
+            .enumerate()
+            .take(self.data.len())
+            .skip(starting_idx)
+        {
+            if self.data[i] == color && !v {
+                for v in shaded.iter_mut() {
+                    *v = false;
+                }
+                return self.check_helper(shaded, shaded_queue, color, i);
+            }
+        }
+
+        // No more blocks to check.
         true
     }
 
@@ -332,16 +454,27 @@ impl YinYang {
 
     #[must_use]
     fn check(&self) -> bool {
-        self.check_helper(1) && self.check_helper(2) && self.check_two_by_two()
+        let mut shaded_queue = VecDeque::with_capacity(self.data.len() / 2);
+        let mut shaded = vec![false; self.data.len()];
+        if !self.check_helper(&mut shaded, &mut shaded_queue, 1, 0) {
+            return false;
+        }
+        for v in &mut shaded {
+            *v = false;
+        }
+        self.check_helper(&mut shaded, &mut shaded_queue, 2, 0) && self.check_two_by_two()
     }
 
     fn deduce(&mut self) -> Result<Deduction, YinYangError> {
-        let mut ret = Deduction::Same;
+        let mut ret = self.deduce_border()?;
         loop {
             while self.two_by_two_all() == Deduction::Deduction {
                 ret = Deduction::Deduction;
             }
             if self.checkerboard_all()? == Deduction::Same {
+                break;
+            }
+            if self.deduce_border()? == Deduction::Same {
                 break;
             }
             ret = Deduction::Deduction;
@@ -365,7 +498,7 @@ impl Solvable for YinYang {
 
     fn next_idx_to_guess(&self) -> Option<usize> {
         for (i, v) in self.data.iter().enumerate() {
-            if *v == 0 {
+            if *v == 3 {
                 return Some(i);
             }
         }
@@ -378,12 +511,22 @@ impl Solvable for YinYang {
 
     fn solved(&self) -> bool {
         for v in &self.data {
-            if *v == 0 {
+            if *v == 3 {
                 return false;
             }
         }
 
         self.check()
+    }
+
+    fn indices(&self) -> Vec<usize> {
+        let mut ret: Vec<usize> = self.border.iter().map(|x| *x).collect();
+        ret.extend(0..self.data.len());
+        ret
+    }
+
+    fn possibility(&self, idx: usize, g: <Self as Solvable>::Guess) -> bool {
+        self.data[idx] & g != 0
     }
 }
 
@@ -425,13 +568,16 @@ mod tests {
         assert_eq!(yy.height, 13);
         assert_eq!(yy.width, 42);
         assert_eq!(yy.data.len(), 13 * 42);
+        assert_eq!(yy.border.len(), 2 * 13 + 2 * 42 - 4);
     }
 
     #[test]
     fn from_string_doctest() {
         let yy = YinYang::from_string(3, 3, "012000000");
         assert!(yy.is_ok());
-        assert_eq!(format!("{}", yy.unwrap()), "0 1 2 \n0 0 0 \n0 0 0 \n");
+        let yy_unwrap = yy.unwrap();
+        assert_eq!(format!("{yy_unwrap}"), "3 1 2 \n3 3 3 \n3 3 3 \n");
+        assert_eq!(*yy_unwrap.border, [0, 1, 2, 5, 8, 7, 6, 3]);
 
         let bad_yy = YinYang::from_string(3, 3, "10");
         assert!(bad_yy.is_err());
@@ -460,6 +606,10 @@ mod tests {
     #[test]
     fn checkerboard() {
         let mut yy = YinYang::from_string(8, 2, "0112210210211000").unwrap();
+        assert_eq!(
+            *yy.border,
+            [0, 1, 3, 5, 7, 9, 11, 13, 15, 14, 12, 10, 8, 6, 4, 2]
+        );
         let mut response = yy.checkerboard(0);
         assert!(response.is_ok());
         assert_eq!(response.unwrap(), Deduction::Deduction);
@@ -492,9 +642,10 @@ mod tests {
     #[test]
     fn two_by_two_all() {
         let mut yy = YinYang::from_string(3, 4, "110010000220").unwrap();
+        assert_eq!(*yy.border, [0, 1, 2, 3, 7, 11, 10, 9, 8, 4]);
         let response = yy.two_by_two_all();
         assert_eq!(response, Deduction::Deduction);
-        assert_eq!(format!("{yy}"), "1 1 0 0 \n1 2 1 0 \n0 2 2 0 \n");
+        assert_eq!(format!("{yy}"), "1 1 3 3 \n1 2 1 3 \n3 2 2 3 \n");
     }
 
     #[test]
@@ -515,13 +666,52 @@ mod tests {
     }
 
     #[test]
-    fn yy_true_candidates() {
+    fn yy_true_candidates_dfs() {
         let yy = YinYang::from_string(4, 4, "0020000020010000").unwrap();
         let tc = solution_iter::true_candidates_dfs(&yy);
         assert!(tc.is_some());
         assert_eq!(
             format!("{}", tc.unwrap()),
             "2 2 2 3 \n2 1 3 1 \n2 3 3 1 \n3 3 3 3 \n"
+        );
+    }
+
+    #[test]
+    fn yy_true_candidates_bfs() {
+        let yy = YinYang::from_string(4, 4, "0020000020010000").unwrap();
+        let tc = solution_iter::true_candidates_bfs(&yy);
+        assert!(tc.is_some());
+        assert_eq!(
+            format!("{}", tc.unwrap()),
+            "2 2 2 3 \n2 1 3 1 \n2 3 3 1 \n3 3 3 3 \n"
+        );
+    }
+
+    #[test]
+    fn second_block_isolated() {
+        let yy = YinYang::from_string(4, 5, "22222212122122200000").unwrap();
+        let mut shaded_queue = VecDeque::with_capacity(yy.data.len() / 2);
+        let mut shaded = vec![false; yy.data.len()];
+        assert!(!yy.check_helper(&mut shaded, &mut shaded_queue, 1, 0));
+    }
+
+    #[test]
+    fn deduce_border() {
+        let mut yy = YinYang::from_string(10, 10, "0000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000210000").unwrap();
+        assert_eq!(yy.deduce_border(), Ok(Deduction::Deduction));
+        assert_eq!(
+            format!("{yy}"),
+            "2 2 2 2 2 2 2 2 2 2 
+2 3 3 3 3 3 3 3 3 2 
+2 3 3 3 3 3 3 3 3 2 
+2 3 3 3 3 3 3 3 3 2 
+2 3 3 3 3 3 3 3 3 3 
+2 3 3 3 3 3 3 3 3 3 
+2 3 3 3 3 3 3 3 3 3 
+2 3 3 3 3 3 3 3 3 3 
+2 3 3 3 3 3 3 3 3 3 
+2 2 2 2 2 1 3 3 3 3 
+"
         );
     }
 }

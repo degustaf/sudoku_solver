@@ -185,6 +185,12 @@ fn build_default_regions(size: usize) -> Result<Vec<Vec<usize>>, SudokuErrors> {
     Ok(ret)
 }
 
+impl Display for Board {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{self:?}")
+    }
+}
+
 impl Board {
     /// Generate an empty sudoku grid.
     ///
@@ -708,6 +714,14 @@ impl Solvable for Board {
 
     fn solved(&self) -> bool {
         self.solved()
+    }
+
+    fn indices(&self) -> Vec<usize> {
+        (0..self.grid.len()).collect()
+    }
+
+    fn possibility(&self, idx: usize, g: <Self as Solvable>::Guess) -> bool {
+        self.grid[idx] & g != 0
     }
 }
 
