@@ -2,7 +2,7 @@
 
 use crate::build_irregular::build_irregular;
 use clap::{Parser, Subcommand, ValueEnum};
-use solution_iter::{SolutionIterator, true_candidates_bfs};
+use solution_iter::{true_candidates_bfs, SolutionIterator};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -83,23 +83,21 @@ fn solve_file(path: &Path) {
     }
 }
 
-fn solve_yin_yang(computation: YyComputation, path: &Path) {
-    let file = match File::open(path) {
-        Ok(file) => file,
-        Err(e) => {
-            eprintln!("Error: {e}");
-            return;
-        }
-    };
-    let mut data = BufReader::new(file).lines();
+fn solve_yin_yang<R: std::io::BufRead, W: std::io::Write, W2: std::io::Write>(
+    computation: &YyComputation,
+    file: R,
+    mut output: W,
+    mut error: W2,
+) {
+    let mut data = file.lines();
     let mut repr = match data.next() {
         Some(Ok(repr)) => repr,
         Some(Err(e)) => {
-            eprintln!("Error on line 1: {e}");
+            let _ = writeln!(error, "Error on line 1: {e}");
             return;
         }
         None => {
-            eprintln!("Error: {} is empty.", path.display());
+            let _ = writeln!(error, "Error: File is empty.");
             return;
         }
     };
@@ -110,15 +108,17 @@ fn solve_yin_yang(computation: YyComputation, path: &Path) {
         let line_repr = match line {
             Ok(repr) => repr,
             Err(e) => {
-                eprintln!("Error on line {}: {e}", i + 1);
+                let _ = writeln!(error, "Error on line {}: {e}", i + 1);
                 return;
             }
         };
         if line_repr.len() != width {
-            eprintln!(
+            let _ = writeln!(
+                error,
                 "Error: line {} is a different length from previous lines.",
                 i + 1
             );
+            return;
         }
         height += 1;
         repr.push_str(&line_repr);
@@ -127,32 +127,32 @@ fn solve_yin_yang(computation: YyComputation, path: &Path) {
     let yy = match YinYang::from_string(height, width, &repr) {
         Ok(yy) => yy,
         Err(e) => {
-            eprintln!("Error: {e}");
+            let _ = writeln!(error, "Error: {e}");
             return;
         }
     };
     match computation {
         YyComputation::TrueCandidates => match true_candidates_bfs(&yy) {
             Some(tc) => {
-                println!("{tc}");
+                let _ = writeln!(output, "{tc}");
             }
             None => {
-                eprintln!("No solutions found.");
+                let _ = writeln!(output, "No solutions found.");
             }
         },
         YyComputation::SolutionCount => {
-            let mut i = 0;
+            let mut i: usize = 0;
             for _ in SolutionIterator::new(&yy) {
                 i += 1;
-                if i & 0x3FF == 0 {
-                    println!("{i}");
+                if i.trailing_zeros() >= 10 {
+                    let _ = writeln!(output, "{i}");
                 }
             }
-            println!("{i}");
+            let _ = writeln!(output, "{i}");
         }
         YyComputation::Candidates => {
             for cand in SolutionIterator::new(&yy) {
-                println!("{cand}");
+                let _ = writeln!(output, "{cand}");
             }
         }
     }
@@ -196,6 +196,180 @@ fn main() {
                 }
             };
         }
-        Command::YinYang { computation, path } => solve_yin_yang(computation, &path),
+        Command::YinYang { computation, path } => {
+            let file = match File::open(path) {
+                Ok(file) => file,
+                Err(e) => {
+                    eprintln!("Error: {e}");
+                    return;
+                }
+            };
+            solve_yin_yang(
+                &computation,
+                BufReader::new(file),
+                std::io::stdout(),
+                std::io::stderr(),
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::str::from_utf8;
+
+    #[test]
+    fn yy_solution_count_one() {
+        let input = b"1000000001
+0002000220
+0020200200
+0002002100
+0101000100
+0000012000
+0000200010
+0020020020
+0022000000
+0000020000";
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        solve_yin_yang(
+            &YyComputation::SolutionCount,
+            &input[..],
+            &mut output,
+            &mut error,
+        );
+        assert_eq!(from_utf8(&output).unwrap(), "1\n");
+    }
+
+    #[test]
+    fn yy_solution_count_none() {
+        let input = b"1000200001
+0002000220
+0020200200
+0002002100
+0101000100
+0000012000
+0000200010
+0020020020
+0022000000
+0000020000";
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        solve_yin_yang(
+            &YyComputation::SolutionCount,
+            &input[..],
+            &mut output,
+            &mut error,
+        );
+        assert_eq!(from_utf8(&output).unwrap(), "0\n");
+    }
+
+    #[test]
+    fn yy_solution_count_many() {
+        let input = b"1000000001
+0002000220
+0020200200
+0002002100
+0100000100
+0000000000
+0000000010
+0000000020
+0022000000
+0000020000";
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        solve_yin_yang(
+            &YyComputation::SolutionCount,
+            &input[..],
+            &mut output,
+            &mut error,
+        );
+        assert_eq!(from_utf8(&output).unwrap(), "1024\n2048\n2515\n");
+    }
+
+    #[test]
+    fn yy_tc_none() {
+        let input = b"1000200001
+0002000220
+0020200200
+0002002100
+0101000100
+0000012000
+0000200010
+0020020020
+0022000000
+0000020000";
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        solve_yin_yang(
+            &YyComputation::TrueCandidates,
+            &input[..],
+            &mut output,
+            &mut error,
+        );
+        assert_eq!(from_utf8(&output).unwrap(), "No solutions found.\n");
+    }
+
+    #[test]
+    fn yy_tc_many() {
+        let input = b"1000000001
+0002000220
+0020200200
+0002002100
+0101000100
+0000000000
+0000000010
+0020020020
+0022000000
+0000020000";
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        solve_yin_yang(
+            &YyComputation::TrueCandidates,
+            &input[..],
+            &mut output,
+            &mut error,
+        );
+        assert_eq!(from_utf8(&output).unwrap(), "1 1 1 1 1 1 1 1 1 1 \n1 2 1 2 1 2 1 2 2 3 \n1 2 2 2 2 2 2 2 1 3 \n1 2 1 2 1 1 2 1 1 2 \n1 1 1 1 1 2 2 1 2 2 \n1 2 1 2 3 3 3 1 1 2 \n1 2 2 2 3 3 3 2 1 2 \n1 1 2 1 1 2 3 2 2 2 \n1 2 2 2 3 3 1 1 1 2 \n1 1 1 3 3 2 2 2 2 2 \n\n");
+    }
+
+    #[test]
+    fn bad_yy() {
+        let input = b"1000000001
+00020002200020200200
+0002002100
+0101000100
+0000000000
+0000000010
+0020020020
+0022000000
+0000020000";
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        solve_yin_yang(
+            &YyComputation::TrueCandidates,
+            &input[..],
+            &mut output,
+            &mut error,
+        );
+        assert_eq!(
+            from_utf8(&error).unwrap(),
+            "Error: line 1 is a different length from previous lines.\n"
+        );
+    }
+
+    #[test]
+    fn yy_empty_file() {
+        let input = b"";
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        solve_yin_yang(
+            &YyComputation::TrueCandidates,
+            &input[..],
+            &mut output,
+            &mut error,
+        );
+        assert_eq!(from_utf8(&error).unwrap(), "Error: File is empty.\n");
     }
 }

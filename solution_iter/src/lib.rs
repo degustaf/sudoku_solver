@@ -174,7 +174,6 @@ pub fn true_candidates_bfs<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
     Some(ret)
 }
 
-
 /// Compute all possible values that can be placed in any index for a puzzle.
 ///
 /// `BitOrAssign` is used to combine multiple solutions and retain what possibilities are available

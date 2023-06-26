@@ -170,4 +170,27 @@ mod tests {
         assert!(resp.is_err());
         assert_eq!(resp.unwrap_err(), SudokuErrors::BadSize);
     }
+
+    #[test]
+    fn many_solutions() {
+        let b_resp = from_string(
+            "123456...........................................................................",
+        );
+        assert!(b_resp.is_ok());
+        let board = b_resp.unwrap();
+
+        let resp = solve(&board);
+        assert!(resp.is_err());
+        assert_eq!(resp.unwrap_err(), SudokuErrors::MultipleSolutions);
+    }
+
+    #[test]
+    fn one_solution() {
+        let resp = from_string(
+            "1...5.3..9.2..........3.4...8.....4..7..........6..81.6..2.8.........5.7.....1..9",
+        );
+        assert!(resp.is_ok());
+        let board = resp.unwrap();
+        assert!(solve(&board).is_ok());
+    }
 }

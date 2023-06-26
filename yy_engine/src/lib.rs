@@ -261,7 +261,6 @@ impl YinYang {
         Ok(ret)
     }
 
-    #[allow(dead_code)]
     fn deduce_border(&mut self) -> Result<Deduction, YinYangError> {
         let mut ret = Deduction::Same;
         let mut first_color = 3;
@@ -302,7 +301,7 @@ impl YinYang {
         }
 
         let mut last_second_color_idx = second_color_idx;
-        last_first_color_idx = 0;
+        last_first_color_idx = usize::MAX;
         for i in second_color_idx + 1..self.border.len() {
             if self.data[self.border[i]] == first_color {
                 last_first_color_idx = i;
@@ -317,7 +316,7 @@ impl YinYang {
             }
         }
 
-        if last_first_color_idx != 0 {
+        if last_first_color_idx != usize::MAX {
             for i in last_first_color_idx + 1..self.border.len() {
                 if self.data[self.border[i]] == second_color {
                     return Err(YinYangError::Contradiction);
@@ -329,9 +328,7 @@ impl YinYang {
             }
 
             for i in 0..first_color_idx {
-                if self.data[self.border[i]] == second_color {
-                    return Err(YinYangError::Contradiction);
-                }
+                debug_assert_ne!(self.data[self.border[i]], second_color);
                 if self.data[self.border[i]] != first_color {
                     self.data[self.border[i]] = first_color;
                     ret = Deduction::Deduction;
@@ -520,7 +517,7 @@ impl Solvable for YinYang {
     }
 
     fn indices(&self) -> Vec<usize> {
-        let mut ret: Vec<usize> = self.border.iter().map(|x| *x).collect();
+        let mut ret: Vec<usize> = self.border.iter().copied().collect();
         ret.extend(0..self.data.len());
         ret
     }
@@ -713,5 +710,23 @@ mod tests {
 2 2 2 2 2 1 3 3 3 3 
 "
         );
+    }
+
+    #[test]
+    fn bad_border() {
+        let mut yy = YinYang::from_string(5, 5, "1000200000000000000020001").unwrap();
+        assert_eq!(yy.deduce_border(), Err(YinYangError::Contradiction));
+    }
+
+    #[test]
+    fn empty_border() {
+        let mut yy = YinYang::from_string(5, 5, "0000000000000000000000000").unwrap();
+        assert_eq!(yy.deduce_border(), Ok(Deduction::Same));
+    }
+
+    #[test]
+    fn border_only_one_color() {
+        let mut yy = YinYang::from_string(5, 5, "1000000000000000000000001").unwrap();
+        assert_eq!(yy.deduce_border(), Ok(Deduction::Same));
     }
 }

@@ -488,7 +488,7 @@ impl Board {
 
         let mut ret = Elimination::Same;
         for vs in (1..=self.meta.max_val)
-            .filter(|v| *v & used_digits == 0)
+            .filter(|v| (1 << *v) & used_digits == 0)
             .combinations(n)
         {
             let mut digits = 0;
@@ -1125,7 +1125,6 @@ mod tests {
         assert_eq!(response.unwrap(), 38);
     }
 
-    #[cfg_attr(tarpaulin, ignore)]
     #[test]
     fn solution_count_with_midcount_reporting() {
         let b = from_string(
@@ -1175,6 +1174,14 @@ mod tests {
     }
 
     #[test]
+    fn test_indices() {
+        for n in 4..=16 {
+            let b = Board::new(n, n).unwrap();
+            assert_eq!(b.indices().len(), n * n);
+        }
+    }
+
+    #[test]
     fn solution_iter() {
         let res = from_string(
             "1.2........62.3.........3.454..6........5.9......1.76..87.........9.8.........1.9",
@@ -1206,5 +1213,25 @@ mod tests {
         let board = res.unwrap();
         let iter = SolutionIterator::new(&board);
         assert_eq!(iter.count(), 0);
+    }
+
+    #[test]
+    fn naked_tuples() {
+        let res = from_string(
+            "1234..5.........67...............................................................",
+        );
+        assert!(res.is_ok());
+        let mut board = res.unwrap();
+        assert_eq!(board.naked_tuples(2), Ok(Elimination::Eliminated));
+        assert!(!board.possibility(4, board.to_bits(8).unwrap()));
+        assert!(!board.possibility(4, board.to_bits(9).unwrap()));
+        assert!(!board.possibility(15, board.to_bits(8).unwrap()));
+        assert!(!board.possibility(15, board.to_bits(9).unwrap()));
+
+        // It's an implementation detail that we don't want to test if this is caught in the first
+        // or second run of naked_tuples.
+        let _ = board.naked_tuples(2);
+        assert!(!board.possibility(13, board.to_bits(6).unwrap()));
+        assert!(!board.possibility(13, board.to_bits(7).unwrap()));
     }
 }
