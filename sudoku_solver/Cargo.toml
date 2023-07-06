@@ -9,6 +9,7 @@ authors = ["Derek Gustafson"]
 [dependencies]
 arrayvec = "0.7.2"
 clap = { version = "4", features = ["derive"] }
+tokio-util = "0.7"
 solution_iter = { path = "../solution_iter" }
 sudoku_engine = { path = "../sudoku_engine" }
 yy_engine = { path = "../yy_engine" }

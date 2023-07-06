@@ -541,6 +541,7 @@ impl BitOrAssign for YinYang {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio_util::sync::CancellationToken;
 
     #[test]
     fn deduction_bitand() {
@@ -676,7 +677,8 @@ mod tests {
     #[test]
     fn yy_true_candidates_bfs() {
         let yy = YinYang::from_string(4, 4, "0020000020010000").unwrap();
-        let tc = solution_iter::true_candidates_bfs(&yy);
+        let token = CancellationToken::new();
+        let tc = solution_iter::true_candidates_bfs(&yy, &token);
         assert!(tc.is_some());
         assert_eq!(
             format!("{}", tc.unwrap()),

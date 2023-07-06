@@ -6,6 +6,7 @@ use solution_iter::{true_candidates_bfs, SolutionIterator};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use tokio_util::sync::CancellationToken;
 use yy_engine::YinYang;
 
 mod build_irregular;
@@ -131,8 +132,9 @@ fn solve_yin_yang<R: std::io::BufRead, W: std::io::Write, W2: std::io::Write>(
             return;
         }
     };
+    let token = CancellationToken::new();
     match computation {
-        YyComputation::TrueCandidates => match true_candidates_bfs(&yy) {
+        YyComputation::TrueCandidates => match true_candidates_bfs(&yy, &token) {
             Some(tc) => {
                 let _ = writeln!(output, "{tc}");
             }

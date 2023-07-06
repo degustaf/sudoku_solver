@@ -70,10 +70,25 @@ struct CellPair {
     cells: [String; 2],
 }
 
+/// A representation of a quadruple clue: the values must show up in the four cells listed.
 #[derive(Debug, Deserialize, Serialize)]
-struct Quad {
-    cells: Vec<String>,
-    values: Vec<usize>,
+pub struct Quad {
+    /// The four cells of the quadruple.
+    pub cells: [String; 4],
+    /// The values that must be included in the four cells.
+    pub values: Vec<usize>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+enum Xv {
+    X,
+    V,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct XvClue {
+    cells: [String; 2],
+    value: Xv,
 }
 
 /// A rust representation of a sudoku puzzle. It uses the f-puzzles format.
@@ -108,8 +123,22 @@ pub struct FPuzzles {
     difference: Vec<CellPair>,
     #[serde(default)]
     ratio: Vec<CellPair>,
+
+    /// A list of quadruple clues.
     #[serde(default)]
-    quadruple: Vec<Quad>,
+    pub quadruple: Vec<Quad>,
+
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    author: String,
+    #[serde(default)]
+    ruleset: String,
+    #[serde(default)]
+    xv: Vec<XvClue>,
+
+    #[serde(default)]
+    solution: Vec<usize>,
 }
 
 impl FPuzzles {
@@ -130,6 +159,11 @@ impl FPuzzles {
             difference: Vec::new(),
             ratio: Vec::new(),
             quadruple: Vec::new(),
+            title: String::new(),
+            author: String::new(),
+            ruleset: String::new(),
+            xv: Vec::new(),
+            solution: Vec::new(),
         }
     }
 

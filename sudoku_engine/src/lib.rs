@@ -1,6 +1,8 @@
 //! Provides ways to interact with a sudoku puzzle.
 
 #![warn(missing_docs)]
+mod board;
+mod constraints;
 mod types;
 
 use types::Bits;
@@ -66,7 +68,7 @@ pub fn from_regions(
     for (i, idx) in region_numbers.iter().enumerate() {
         regions[*idx].push(i);
     }
-    Board::new_with_regions(size, max_val, regions)
+    Board::new_with_regions(size, max_val, regions, Vec::new())
 }
 
 /// Place the digit `value` in the puzzle at location `idx`.

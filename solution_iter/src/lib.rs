@@ -2,12 +2,14 @@
 //! puzzle. This provides the core engine used to find **a** solution, and to count solutions.
 
 use std::ops::BitOrAssign;
+use tokio_util::sync::CancellationToken;
 // use std::fmt::Display;
+use core::fmt::Debug;
 
 /// A common trait for puzzles that can be solved using a depth first search.
 pub trait Solvable: Clone {
     /// The type that is used to describe a guess as used in the `assign` function.
-    type Guess: Copy;
+    type Guess: Copy + Debug;
 
     /// Assign `guess` at `next_idx`. Should return `false` if this breaks the puzzle, and `true`
     /// otherwise.
@@ -67,7 +69,7 @@ impl<T: Solvable> SolutionIterator<T> {
     }
 }
 
-impl<T: Solvable> std::iter::Iterator for SolutionIterator<T> {
+impl<T: Solvable + Debug> std::iter::Iterator for SolutionIterator<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -118,7 +120,7 @@ impl<T: Solvable> std::iter::Iterator for SolutionIterator<T> {
 ///
 /// This uses a depth first search and may not be appropriate for puzzles with large branching
 /// factors that have many solutions available.
-pub fn true_candidates_dfs<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
+pub fn true_candidates_dfs<T: Solvable + BitOrAssign + Debug>(puzzle: &T) -> Option<T> {
     let mut iter = SolutionIterator::new(puzzle);
     let Some(mut ret) = iter.next() else {
         return None;
@@ -130,11 +132,18 @@ pub fn true_candidates_dfs<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
     Some(ret)
 }
 
-fn tc_breadth_first<T: Solvable + BitOrAssign>(mut puzzle: T, ret: &mut T) {
+fn tc_breadth_first<T: Solvable + BitOrAssign + Debug>(
+    mut puzzle: T,
+    ret: &mut T,
+    token: &CancellationToken,
+) {
     for i in puzzle.indices() {
         let mut count = 0;
         let mut val = None;
         for g in puzzle.guesses(i) {
+            if token.is_cancelled() {
+                return;
+            }
             if puzzle.possibility(i, g) {
                 if ret.possibility(i, g) {
                     count += 1;
@@ -165,12 +174,15 @@ fn tc_breadth_first<T: Solvable + BitOrAssign>(mut puzzle: T, ret: &mut T) {
 ///
 /// This uses a breadth first search and may not be appropriate for puzzles that have only a few
 /// solutions, but finding each one is slow and requires many contradictions.
-pub fn true_candidates_bfs<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
+pub fn true_candidates_bfs<T: Solvable + BitOrAssign + Debug>(
+    puzzle: &T,
+    token: &CancellationToken,
+) -> Option<T> {
     let Some(mut ret) = SolutionIterator::new(puzzle).next() else {
         return None;
     };
 
-    tc_breadth_first(puzzle.clone(), &mut ret);
+    tc_breadth_first(puzzle.clone(), &mut ret, token);
     Some(ret)
 }
 
@@ -182,7 +194,10 @@ pub fn true_candidates_bfs<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
 /// This uses a hybrid approach where a depth first search is attempted. If too many solutions are
 /// found, we switch to a breadth first approach and begin filling in possible values that have
 /// been skipped over so far.
-pub fn true_candidates<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
+pub fn true_candidates<T: Solvable + BitOrAssign + Debug>(
+    puzzle: &T,
+    token: &CancellationToken,
+) -> Option<T> {
     let mut iter = SolutionIterator::new(puzzle);
     let Some(mut ret) = iter.next() else {
         return None;
@@ -192,7 +207,7 @@ pub fn true_candidates<T: Solvable + BitOrAssign>(puzzle: &T) -> Option<T> {
         ret |= sln;
         count += 1;
         if count > 10_000 {
-            tc_breadth_first(puzzle.clone(), &mut ret);
+            tc_breadth_first(puzzle.clone(), &mut ret, token);
             break;
         }
     }

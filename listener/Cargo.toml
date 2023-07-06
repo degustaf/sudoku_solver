@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 f_puzzles = { path = "../f_puzzles" }
+solution_iter = { path = "../solution_iter" }
 sudoku_engine = { path = "../sudoku_engine" }
 futures-util = "0.3"
 lz-str = "0.2"

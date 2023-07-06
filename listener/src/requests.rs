@@ -3,6 +3,7 @@
 use crate::types::{Command, Error, Request, Response};
 use f_puzzles::FPuzzles;
 use rayon::spawn;
+use solution_iter::Solvable;
 use sudoku_engine::Board;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
@@ -66,6 +67,7 @@ async fn count_solutions(
             return;
         }
     };
+
     let (engine_tx, mut engine_rx) = mpsc::channel::<usize>(100);
     let token2 = token.clone();
     rayon::spawn(move || {
@@ -100,7 +102,48 @@ async fn count_solutions(
     {}
 }
 
-#[allow(clippy::needless_pass_by_value)]
+fn true_candidates(
+    nonce: usize,
+    f_puz: &FPuzzles,
+    token: &CancellationToken,
+    ch_tx: &mpsc::Sender<Response>,
+) {
+    let b = match Board::try_from(f_puz) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Failed to convert from f_puzzles to board: {e}",);
+            while let Err(TrySendError::Full(_)) = ch_tx.try_send(Response::Invalid {
+                nonce,
+                message: e.to_string(),
+            }) {}
+            return;
+        }
+    };
+
+    let Some(result) = solution_iter::true_candidates_bfs(&b, token) else {
+            while let Err(TrySendError::Full(_)) = ch_tx.try_send(Response::Invalid {
+                    nonce,
+                    message: "ERROR: The givens are invalid (no solutions).".to_string()
+                }) {};
+            return;
+    };
+
+    let size = b.size();
+    let mut ret = vec![0; size * size * size];
+    for idx in result.indices() {
+        for g in result.guesses(idx) {
+            // g is a Bits. This converts it back to an int.
+            let g_i = g.trailing_zeros() as usize;
+            ret[idx * size + g_i - 1] = 1;
+        }
+    }
+
+    while let Err(TrySendError::Full(_)) = ch_tx.try_send(Response::TrueCandidates {
+        nonce,
+        solutions_per_candidate: ret.clone(),
+    }) {}
+}
+
 async fn process_fpuzzles_data(
     nonce: usize,
     command: &Command,
@@ -116,7 +159,16 @@ async fn process_fpuzzles_data(
             });
         }
     };
-    let f_puz: FPuzzles = serde_json::from_str(&f_data)?;
+    println!("{f_data}");
+    let f_puz: FPuzzles = {
+        match serde_json::from_str(&f_data) {
+            Ok(f_puz) => f_puz,
+            Err(e) => {
+                println!("{f_data:?}");
+                return Err(e.into());
+            }
+        }
+    };
     match command {
         Command::Check => {
             spawn(move || check_solutions(nonce, &f_puz, &token, &ch_tx));
@@ -127,6 +179,9 @@ async fn process_fpuzzles_data(
         }
         Command::Count => {
             count_solutions(nonce, &f_puz, token, &ch_tx).await;
+        }
+        Command::TrueCandidates => {
+            spawn(move || true_candidates(nonce, &f_puz, &token, &ch_tx));
         }
         _ => {
             todo!();
@@ -418,7 +473,6 @@ mod tests {
         assert_eq!(response3.unwrap_err(), TryRecvError::Empty);
     }
 
-    #[cfg_attr(tarpaulin, ignore)]
     #[tokio::test]
     async fn test_count_solutions2() {
         let res_f = FPuzzles::try_from(

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 solution_iter = { path = "../solution_iter" }
 strength_reduce = "0.2"
+tokio-util = "0.7"

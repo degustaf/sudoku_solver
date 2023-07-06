@@ -468,6 +468,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "solution_iter",
  "sudoku_engine",
  "tokio",
  "tokio-stream",
@@ -726,6 +727,7 @@ name = "solution_iter"
 version = "0.1.0"
 dependencies = [
  "sudoku_engine",
+ "tokio-util",
 ]
 
 [[package]]
@@ -761,6 +763,7 @@ dependencies = [
  "clap",
  "solution_iter",
  "sudoku_engine",
+ "tokio-util",
  "yy_engine",
 ]
 
@@ -1141,4 +1144,5 @@ version = "0.1.0"
 dependencies = [
  "solution_iter",
  "strength_reduce",
+ "tokio-util",
 ]
