@@ -91,6 +91,13 @@ struct XvClue {
     value: Xv,
 }
 
+/// A list of RC notated cells.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Region {
+    /// The actual list of cells.
+    pub cells: Vec<String>,
+}
+
 /// A rust representation of a sudoku puzzle. It uses the f-puzzles format.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Deserialize, Serialize)]
@@ -104,9 +111,12 @@ pub struct FPuzzles {
     #[serde(rename = "diagonal+")]
     #[serde(default)]
     positive_diagonal: bool,
+
+    /// `true` indicates that digits can't repeat on the negative diagonal.
     #[serde(rename = "diagonal-")]
     #[serde(default)]
     negative_diagonal: bool,
+
     #[serde(default)]
     antiknight: bool,
     #[serde(default)]
@@ -137,6 +147,10 @@ pub struct FPuzzles {
     #[serde(default)]
     xv: Vec<XvClue>,
 
+    /// An extra region in the grid where digits cannot repeat.
+    #[serde(default)]
+    pub extraregion: Vec<Region>,
+
     #[serde(default)]
     solution: Vec<usize>,
 }
@@ -163,6 +177,7 @@ impl FPuzzles {
             author: String::new(),
             ruleset: String::new(),
             xv: Vec::new(),
+            extraregion: Vec::new(),
             solution: Vec::new(),
         }
     }

@@ -116,6 +116,38 @@ pub(crate) fn quad_enforce_consistency(
     Ok(Elimination::Same)
 }
 
+pub(crate) fn check_region(region: &[usize], grid: &[Bits]) -> bool {
+    let mut seen = 0;
+    for idx in region {
+        if seen & grid[*idx] != 0 {
+            return false;
+        }
+        seen |= grid[*idx];
+    }
+
+    true
+}
+
+pub(crate) fn region_enforce_consistency(
+    idx: usize,
+    value: Bits,
+    region: &[usize],
+    grid: &mut [Bits],
+) -> Result<Elimination, Contradiction> {
+    if !region.contains(&idx) {
+        return Ok(Elimination::Same);
+    }
+    let mut ret = Elimination::Same;
+    for i in region {
+        if *i == idx {
+            continue;
+        }
+        ret &= crate::types::eliminate(*i, value, grid)?;
+    }
+
+    Ok(ret)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

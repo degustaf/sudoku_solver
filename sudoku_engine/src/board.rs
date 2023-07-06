@@ -298,6 +298,7 @@ impl Board {
             Constraint::Quad(idx, single, double) => {
                 constraints::check_quad(*idx, *single, *double, self.meta.size, &self.grid)
             }
+            Constraint::Region(region) => constraints::check_region(region, &self.grid),
         }
     }
 
@@ -306,6 +307,7 @@ impl Board {
             Constraint::Quad(idx, single, double) => {
                 constraints::init_quad(*idx, *single, *double, self.meta.size, &mut self.grid)
             }
+            Constraint::Region(_) => Ok(Elimination::Same),
         }
     }
 
@@ -313,7 +315,7 @@ impl Board {
         &mut self,
         c: &Constraint,
         idx: usize,
-        _value: Bits,
+        value: Bits,
     ) -> Result<Elimination, Contradiction> {
         match c {
             Constraint::Quad(quad_idx, single, double) => constraints::quad_enforce_consistency(
@@ -324,6 +326,9 @@ impl Board {
                 self.meta.size,
                 &mut self.grid,
             ),
+            Constraint::Region(region) => {
+                constraints::region_enforce_consistency(idx, value, region, &mut self.grid)
+            }
         }
     }
 
@@ -603,7 +608,8 @@ impl Board {
         }
     }
 
-    /// Count the number of solutions to a puzzle and return the result.
+    /// Count the number of solutions to a puzzle and return the result. Computation is cancelled
+    /// when `max_count` is reached.
     #[tokio::main(flavor = "current_thread")]
     pub async fn solution_count_max(&mut self, max_count: usize) -> usize {
         let (tx, mut rx) = mpsc::channel::<usize>(100);
@@ -701,6 +707,14 @@ impl TryFrom<&FPuzzles> for Board {
             constraints.push(Constraint::Quad(idx, single, double));
         }
 
+        for r in &f.extraregion {
+            let mut region = Vec::new();
+            for c in &r.cells {
+                region.push(rc_to_idx(c, f.size)?);
+            }
+            constraints.push(Constraint::Region(region));
+        }
+
         let mut ret = if f.is_irregular() {
             let reg = regions(f);
             if reg.iter().any(|x| x.len() != f.size) {
@@ -780,6 +794,8 @@ mod tests {
     const FIVE: Bits = 1 << 5;
     const SIX: Bits = 1 << 6;
     const SEVEN: Bits = 1 << 7;
+    const EIGHT: Bits = 1 << 8;
+    const NINE: Bits = 1 << 9;
 
     #[test]
     fn good_new() {
@@ -1031,6 +1047,26 @@ mod tests {
         assert!(res_b.is_ok());
         let b = res_b.unwrap();
         assert_eq!(b.meta.constraints[0], Constraint::Quad(0, FIVE | SIX, 0));
+    }
+
+    #[test]
+    fn from_f_puzzles_extraregion() {
+        let mut f = FPuzzles::new(9);
+        f.extraregion.push(f_puzzles::Region {
+            cells: vec![
+                "R2C2".to_string(),
+                "R2C3".to_string(),
+                "R2C4".to_string(),
+                "R3C2".to_string(),
+                "R3C3".to_string(),
+                "R3C4".to_string(),
+                "R4C2".to_string(),
+                "R4C3".to_string(),
+                "R4C4".to_string(),
+            ],
+        });
+        let res_b = Board::try_from(&f);
+        assert!(res_b.is_ok());
     }
 
     #[test]
@@ -1299,5 +1335,82 @@ mod tests {
         let _ = board.naked_tuples(2);
         assert!(!board.possibility(13, board.to_bits(6).unwrap()));
         assert!(!board.possibility(13, board.to_bits(7).unwrap()));
+    }
+
+    #[test]
+    fn windoku() {
+        let mut f = FPuzzles::new(9);
+        f.extraregion.push(f_puzzles::Region {
+            cells: vec![
+                "R2C2".to_string(),
+                "R2C3".to_string(),
+                "R2C4".to_string(),
+                "R3C2".to_string(),
+                "R3C3".to_string(),
+                "R3C4".to_string(),
+                "R4C2".to_string(),
+                "R4C3".to_string(),
+                "R4C4".to_string(),
+            ],
+        });
+        f.extraregion.push(f_puzzles::Region {
+            cells: vec![
+                "R2C6".to_string(),
+                "R2C7".to_string(),
+                "R2C8".to_string(),
+                "R3C6".to_string(),
+                "R3C7".to_string(),
+                "R3C8".to_string(),
+                "R4C6".to_string(),
+                "R4C7".to_string(),
+                "R4C8".to_string(),
+            ],
+        });
+        f.extraregion.push(f_puzzles::Region {
+            cells: vec![
+                "R6C6".to_string(),
+                "R6C7".to_string(),
+                "R6C8".to_string(),
+                "R7C6".to_string(),
+                "R7C7".to_string(),
+                "R7C8".to_string(),
+                "R8C6".to_string(),
+                "R8C7".to_string(),
+                "R8C8".to_string(),
+            ],
+        });
+        f.extraregion.push(f_puzzles::Region {
+            cells: vec![
+                "R6C2".to_string(),
+                "R6C3".to_string(),
+                "R6C4".to_string(),
+                "R7C2".to_string(),
+                "R7C3".to_string(),
+                "R7C4".to_string(),
+                "R8C2".to_string(),
+                "R8C3".to_string(),
+                "R8C4".to_string(),
+            ],
+        });
+
+        let res_b = Board::try_from(&f);
+        assert!(res_b.is_ok());
+        let mut b = res_b.unwrap();
+        assert!(b.assign(4, THREE).is_ok());
+        assert!(b.assign(14, TWO).is_ok());
+        assert!(b.assign(16, EIGHT).is_ok());
+        assert!(b.assign(20, SIX).is_ok());
+        assert!(b.assign(24, FIVE).is_ok());
+        assert!(b.assign(34, THREE).is_ok());
+        assert!(b.assign(36, NINE).is_ok());
+        assert!(b.assign(44, FOUR).is_ok());
+        assert!(b.assign(46, SEVEN).is_ok());
+        assert!(b.assign(56, TWO).is_ok());
+        assert!(b.assign(60, NINE).is_ok());
+        assert!(b.assign(66, FIVE).is_ok());
+        assert!(b.assign(76, EIGHT).is_ok());
+        assert!(b.assign(78, SEVEN).is_ok());
+
+        assert_eq!(b.solution_count_max(100), 1);
     }
 }

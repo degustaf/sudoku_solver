@@ -119,6 +119,7 @@ pub(crate) const DIMENSIONS: [(usize, usize); MAX_SIZE] = [
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Constraint {
     Quad(usize, Bits, Bits),
+    Region(Vec<usize>),
 }
 
 #[derive(Debug)]
