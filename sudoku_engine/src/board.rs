@@ -332,6 +332,22 @@ impl Board {
         }
     }
 
+    fn get_additional_region_from_constraint<'a>(
+        meta: &'a Arc<BoardMeta>,
+        c: &'a Constraint,
+    ) -> Option<&'a [usize]> {
+        match c {
+            Constraint::Quad(_, _, _) => None,
+            Constraint::Region(region) => {
+                if region.len() == meta.size {
+                    Some(region)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
     /// Check whether the puzzle is solved.
     #[must_use]
     pub fn solved(&self) -> bool {
@@ -412,6 +428,12 @@ impl Board {
         for reg in &meta.regions {
             ret &= self.hidden_singles_helper(reg)?;
         }
+        // Additional regions from constraints.
+        for c in &meta.constraints {
+            if let Some(reg) = Self::get_additional_region_from_constraint(&meta, c) {
+                ret &= self.hidden_singles_helper(reg)?;
+            }
+        }
         Ok(ret)
     }
 
@@ -483,6 +505,12 @@ impl Board {
         // regions
         for reg in &meta.regions {
             ret &= self.naked_tuple_helper(n, reg)?;
+        }
+        // Additional regions from constraints.
+        for c in &meta.constraints {
+            if let Some(reg) = Self::get_additional_region_from_constraint(&meta, c) {
+                ret &= self.naked_tuple_helper(n, reg)?;
+            }
         }
         Ok(ret)
     }
@@ -708,9 +736,25 @@ impl TryFrom<&FPuzzles> for Board {
         }
 
         for r in &f.extraregion {
-            let mut region = Vec::new();
+            let mut region = Vec::with_capacity(f.size);
             for c in &r.cells {
                 region.push(rc_to_idx(c, f.size)?);
+            }
+            constraints.push(Constraint::Region(region));
+        }
+
+        if f.negative_diagonal {
+            let mut region = Vec::with_capacity(f.size);
+            for i in 0..f.size {
+                region.push(i * (f.size + 1));
+            }
+            constraints.push(Constraint::Region(region));
+        }
+
+        if f.positive_diagonal {
+            let mut region = Vec::with_capacity(f.size);
+            for i in 0..f.size {
+                region.push((i + 1) * (f.size - 1));
             }
             constraints.push(Constraint::Region(region));
         }
@@ -1411,6 +1455,35 @@ mod tests {
         assert!(b.assign(76, EIGHT).is_ok());
         assert!(b.assign(78, SEVEN).is_ok());
 
+        assert_eq!(b.solution_count_max(100), 1);
+    }
+
+    #[test]
+    fn diagonals() {
+        let mut f = FPuzzles::new(9);
+        f.grid[0][1].value = Some(3);
+        f.grid[0][3].value = Some(1);
+        f.grid[0][8].value = Some(6);
+        f.grid[1][1].value = Some(9);
+        f.grid[1][8].value = Some(5);
+        f.grid[2][3].value = Some(8);
+        f.grid[3][0].value = Some(5);
+        f.grid[3][4].value = Some(6);
+        f.grid[3][6].value = Some(2);
+        f.grid[4][0].value = Some(4);
+        f.grid[4][5].value = Some(2);
+        f.grid[5][7].value = Some(1);
+        f.grid[6][2].value = Some(3);
+        f.grid[7][4].value = Some(7);
+        f.grid[8][6].value = Some(6);
+        f.grid[8][7].value = Some(4);
+
+        f.positive_diagonal = true;
+        f.negative_diagonal = true;
+
+        let res_b = Board::try_from(&f);
+        assert!(res_b.is_ok());
+        let mut b = res_b.unwrap();
         assert_eq!(b.solution_count_max(100), 1);
     }
 }

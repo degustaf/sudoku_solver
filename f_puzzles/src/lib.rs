@@ -108,14 +108,18 @@ pub struct FPuzzles {
 
     /// The individual cells in the board.
     pub grid: Vec<Vec<Cell>>,
+
+    /// `true` indicates that digits can't repeat on the positive diagonal, from bottom left to top
+    /// right.
     #[serde(rename = "diagonal+")]
     #[serde(default)]
-    positive_diagonal: bool,
+    pub positive_diagonal: bool,
 
-    /// `true` indicates that digits can't repeat on the negative diagonal.
+    /// `true` indicates that digits can't repeat on the negative diagonal, from top left to bottom
+    /// right.
     #[serde(rename = "diagonal-")]
     #[serde(default)]
-    negative_diagonal: bool,
+    pub negative_diagonal: bool,
 
     #[serde(default)]
     antiknight: bool,
