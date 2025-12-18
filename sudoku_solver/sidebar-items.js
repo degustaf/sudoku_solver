@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["Command",""]],"fn":[["main",""],["solve_file",""],["solve_helper",""],["solve_puzzle",""]],"mod":[["build_irregular","An interface"]],"struct":[["Args",""]]};
+window.SIDEBAR_ITEMS = {"enum":["Command","YyComputation"],"fn":["main","solve_file","solve_helper","solve_puzzle","solve_yin_yang"],"mod":["build_irregular"],"struct":["Args"]};

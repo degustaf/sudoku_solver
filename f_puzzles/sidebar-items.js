@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":[["Cell","A description of the state of an individual cell in the grid."],["FPuzzles","A rust representation of a sudoku puzzle. It uses the f-puzzles format."]]};
+window.SIDEBAR_ITEMS = {"struct":["Cell","FPuzzles","Quad","Region"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":[["either","Module defining an Either type."],["sync","Synchronization primitives"]]};
+window.SIDEBAR_ITEMS = {"mod":["either","sync"]};

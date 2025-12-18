@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["anstream",[["impl <a class=\"trait\" href=\"is_terminal/trait.IsTerminal.html\" title=\"trait is_terminal::IsTerminal\">IsTerminal</a> for <a class=\"struct\" href=\"anstream/struct.Buffer.html\" title=\"struct anstream::Buffer\">Buffer</a>"],["impl&lt;S&gt; <a class=\"trait\" href=\"is_terminal/trait.IsTerminal.html\" title=\"trait is_terminal::IsTerminal\">IsTerminal</a> for <a class=\"struct\" href=\"anstream/struct.AutoStream.html\" title=\"struct anstream::AutoStream\">AutoStream</a>&lt;S&gt;<div class=\"where\">where\n    S: <a class=\"trait\" href=\"anstream/trait.RawStream.html\" title=\"trait anstream::RawStream\">RawStream</a>,</div>"],["impl&lt;S&gt; <a class=\"trait\" href=\"is_terminal/trait.IsTerminal.html\" title=\"trait is_terminal::IsTerminal\">IsTerminal</a> for <a class=\"struct\" href=\"anstream/struct.StripStream.html\" title=\"struct anstream::StripStream\">StripStream</a>&lt;S&gt;<div class=\"where\">where\n    S: <a class=\"trait\" href=\"anstream/trait.RawStream.html\" title=\"trait anstream::RawStream\">RawStream</a>,</div>"]]],["is_terminal",[]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1071,19]}

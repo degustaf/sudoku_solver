@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["true_candidates","true_candidates_bfs","true_candidates_dfs"],"struct":["SolutionIterator"],"trait":["Solvable"]};

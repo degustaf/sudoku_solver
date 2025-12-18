@@ -1,12 +1,12 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A typesafe bitmask flag generator useful for sets of C-style bitmask flags. It can be used for creating typesafe wrappers around C APIs."><meta name="keywords" content="rust, rustlang, rust-lang, bitflags"><title>bitflags - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../static.files/rustdoc-93196c7a1c3542a8.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="logo-container" href="../bitflags/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2></h2></nav><nav class="sidebar"><a class="logo-container" href="../bitflags/index.html"><img class="rust-logo" src="../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><h2 class="location"><a href="#">Crate bitflags</a></h2><div class="sidebar-elems"><ul class="block"><li class="version">Version 1.3.2</li><li><a id="all-types" href="all.html">All Items</a></li></ul><section><ul class="block"><li><a href="#macros">Macros</a></li></ul></section></div></nav><main><div class="width-limiter"><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="main-heading"><h1>Crate <a class="mod" href="#">bitflags</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../static.files/clipboard-7571035ce49a181d.svg" width="19" height="18" alt="Copy item path"></button></h1><span class="out-of-band"><a class="srclink" href="../src/bitflags/lib.rs.html#11-1729">source</a> · <button id="toggle-all-docs" title="collapse all docs">[<span>&#x2212;</span>]</button></span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A typesafe bitmask flag generator useful for sets of C-style bitmask flags.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A typesafe bitmask flag generator useful for sets of C-style bitmask flags. It can be used for creating typesafe wrappers around C APIs."><title>bitflags - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-ca0dd0c4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="bitflags" data-themes="" data-resource-suffix="" data-rustdoc-version="1.92.0 (ded5c06cf 2025-12-08)" data-channel="1.92.0" data-search-js="search-d69d8955.js" data-stringdex-js="stringdex-c3e638e9.js" data-settings-js="settings-c38705f0.js" ><script src="../static.files/storage-e2aeef58.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-ce535bd0.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-263c88ec.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate bitflags</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../bitflags/index.html">bitflags</a><span class="version">1.3.2</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#example" title="Example">Example</a></li><li><a href="#visibility" title="Visibility">Visibility</a></li><li><a href="#attributes" title="Attributes">Attributes</a><ul><li><a href="#representations" title="Representations">Representations</a></li></ul></li><li><a href="#trait-implementations-1" title="Trait implementations">Trait implementations</a><ul><li><a href="#operators" title="Operators">Operators</a></li></ul></li><li><a href="#methods" title="Methods">Methods</a><ul><li><a href="#default" title="Default">Default</a></li></ul></li><li><a href="#zero-flags" title="Zero Flags">Zero Flags</a></li></ul><h3><a href="#macros">Crate Items</a></h3><ul class="block"><li><a href="#macros" title="Macros">Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content"><div class="main-heading"><h1>Crate <span>bitflags</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/bitflags/lib.rs.html#11-1729">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A typesafe bitmask flag generator useful for sets of C-style bitmask flags.
 It can be used for creating typesafe wrappers around C APIs.</p>
 <p>The <code>bitflags!</code> macro generates <code>struct</code>s that manage a set of flags. The
 flags should only be defined for integer types, otherwise unexpected type
 errors may occur at compile time.</p>
-<h2 id="example"><a href="#example">Example</a></h2>
+<h2 id="example"><a class="doc-anchor" href="#example">§</a>Example</h2>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bitflags::bitflags;
 
-<span class="macro">bitflags! </span>{
+<span class="macro">bitflags!</span> {
     <span class="kw">struct </span>Flags: u32 {
         <span class="kw">const </span>A = <span class="number">0b00000001</span>;
         <span class="kw">const </span>B = <span class="number">0b00000010</span>;
@@ -32,7 +32,7 @@ implementations:</p>
 
 <span class="kw">use </span>bitflags::bitflags;
 
-<span class="macro">bitflags! </span>{
+<span class="macro">bitflags!</span> {
     <span class="kw">struct </span>Flags: u32 {
         <span class="kw">const </span>A = <span class="number">0b00000001</span>;
         <span class="kw">const </span>B = <span class="number">0b00000010</span>;
@@ -48,7 +48,7 @@ implementations:</p>
 
 <span class="kw">impl </span>fmt::Display <span class="kw">for </span>Flags {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;hi!&quot;</span>)
+        <span class="macro">write!</span>(f, <span class="string">"hi!"</span>)
     }
 }
 
@@ -56,11 +56,10 @@ implementations:</p>
     <span class="kw">let </span><span class="kw-2">mut </span>flags = Flags::A | Flags::B;
     flags.clear();
     <span class="macro">assert!</span>(flags.is_empty());
-    <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">&quot;{}&quot;</span>, flags), <span class="string">&quot;hi!&quot;</span>);
-    <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, Flags::A | Flags::B), <span class="string">&quot;A | B&quot;</span>);
-    <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">&quot;{:?}&quot;</span>, Flags::B), <span class="string">&quot;B&quot;</span>);
-}</code></pre></div>
-<h2 id="visibility"><a href="#visibility">Visibility</a></h2>
+    <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{}"</span>, flags), <span class="string">"hi!"</span>);
+    <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{:?}"</span>, Flags::A | Flags::B), <span class="string">"A | B"</span>);
+    <span class="macro">assert_eq!</span>(<span class="macro">format!</span>(<span class="string">"{:?}"</span>, Flags::B), <span class="string">"B"</span>);
+}</code></pre></div><h2 id="visibility"><a class="doc-anchor" href="#visibility">§</a>Visibility</h2>
 <p>The generated structs and their associated flag constants are not exported
 out of the current module by default. A definition can be exported out of
 the current module by adding <code>pub</code> before <code>struct</code>:</p>
@@ -68,7 +67,7 @@ the current module by adding <code>pub</code> before <code>struct</code>:</p>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">mod </span>example {
     <span class="kw">use </span>bitflags::bitflags;
 
-    <span class="macro">bitflags! </span>{
+    <span class="macro">bitflags!</span> {
         <span class="kw">pub struct </span>Flags1: u32 {
             <span class="kw">const </span>A = <span class="number">0b00000001</span>;
         }
@@ -82,25 +81,23 @@ the current module by adding <code>pub</code> before <code>struct</code>:</p>
 <span class="kw">fn </span>main() {
     <span class="kw">let </span>flag1 = example::Flags1::A;
     <span class="kw">let </span>flag2 = example::Flags2::B; <span class="comment">// error: const `B` is private
-</span>}</code></pre></div>
-<h2 id="attributes"><a href="#attributes">Attributes</a></h2>
+</span>}</code></pre></div><h2 id="attributes"><a class="doc-anchor" href="#attributes">§</a>Attributes</h2>
 <p>Attributes can be attached to the generated <code>struct</code>s by placing them
 before the <code>struct</code> keyword.</p>
-<h3 id="representations"><a href="#representations">Representations</a></h3>
+<h3 id="representations"><a class="doc-anchor" href="#representations">§</a>Representations</h3>
 <p>It’s valid to add a <code>#[repr(C)]</code> or <code>#[repr(transparent)]</code> attribute to a type
 generated by <code>bitflags!</code>. In these cases, the type is guaranteed to be a newtype.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bitflags::bitflags;
 
-<span class="macro">bitflags! </span>{
+<span class="macro">bitflags!</span> {
     <span class="attr">#[repr(transparent)]
     </span><span class="kw">struct </span>Flags: u32 {
         <span class="kw">const </span>A = <span class="number">0b00000001</span>;
         <span class="kw">const </span>B = <span class="number">0b00000010</span>;
         <span class="kw">const </span>C = <span class="number">0b00000100</span>;
     }
-}</code></pre></div>
-<h2 id="trait-implementations-1"><a href="#trait-implementations-1">Trait implementations</a></h2>
+}</code></pre></div><h2 id="trait-implementations-1"><a class="doc-anchor" href="#trait-implementations-1">§</a>Trait implementations</h2>
 <p>The <code>Copy</code>, <code>Clone</code>, <code>PartialEq</code>, <code>Eq</code>, <code>PartialOrd</code>, <code>Ord</code> and <code>Hash</code>
 traits are automatically derived for the <code>struct</code>s using the <code>derive</code> attribute.
 Additional traits can be derived by providing an explicit <code>derive</code>
@@ -110,7 +107,7 @@ too: <code>Extend</code> adds the union of the instances of the <code>struct</co
 while <code>FromIterator</code> calculates the union.</p>
 <p>The <code>Binary</code>, <code>Debug</code>, <code>LowerHex</code>, <code>Octal</code> and <code>UpperHex</code> traits are also
 implemented by displaying the bits value of the internal struct.</p>
-<h3 id="operators"><a href="#operators">Operators</a></h3>
+<h3 id="operators"><a class="doc-anchor" href="#operators">§</a>Operators</h3>
 <p>The following operator traits are implemented for the generated <code>struct</code>s:</p>
 <ul>
 <li><code>BitOr</code> and <code>BitOrAssign</code>: union</li>
@@ -119,7 +116,7 @@ implemented by displaying the bits value of the internal struct.</p>
 <li><code>Sub</code> and <code>SubAssign</code>: set difference</li>
 <li><code>Not</code>: set complement</li>
 </ul>
-<h2 id="methods"><a href="#methods">Methods</a></h2>
+<h2 id="methods"><a class="doc-anchor" href="#methods">§</a>Methods</h2>
 <p>The following methods are defined for the generated <code>struct</code>s:</p>
 <ul>
 <li><code>empty</code>: an empty set of flags</li>
@@ -155,14 +152,14 @@ to the function), but not both.</li>
 <li><code>complement</code>: returns a new set of flags, containing all flags which are
 not set in <code>self</code>, but which are allowed for this type.</li>
 </ul>
-<h3 id="default"><a href="#default">Default</a></h3>
+<h3 id="default"><a class="doc-anchor" href="#default">§</a>Default</h3>
 <p>The <code>Default</code> trait is not automatically implemented for the generated structs.</p>
 <p>If your default value is equal to <code>0</code> (which is the same value as calling <code>empty()</code>
 on the generated struct), you can simply derive <code>Default</code>:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bitflags::bitflags;
 
-<span class="macro">bitflags! </span>{
+<span class="macro">bitflags!</span> {
     <span class="comment">// Results in default value with bits: 0
     </span><span class="attr">#[derive(Default)]
     </span><span class="kw">struct </span>Flags: u32 {
@@ -180,7 +177,7 @@ on the generated struct), you can simply derive <code>Default</code>:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bitflags::bitflags;
 
-<span class="macro">bitflags! </span>{
+<span class="macro">bitflags!</span> {
     <span class="kw">struct </span>Flags: u32 {
         <span class="kw">const </span>A = <span class="number">0b00000001</span>;
         <span class="kw">const </span>B = <span class="number">0b00000010</span>;
@@ -198,13 +195,12 @@ on the generated struct), you can simply derive <code>Default</code>:</p>
 <span class="kw">fn </span>main() {
     <span class="kw">let </span>implemented_default: Flags = Default::default();
     <span class="macro">assert_eq!</span>(implemented_default, (Flags::A | Flags::C));
-}</code></pre></div>
-<h2 id="zero-flags"><a href="#zero-flags">Zero Flags</a></h2>
+}</code></pre></div><h2 id="zero-flags"><a class="doc-anchor" href="#zero-flags">§</a>Zero Flags</h2>
 <p>Flags with a value equal to zero will have some strange behavior that one should be aware of.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>bitflags::bitflags;
 
-<span class="macro">bitflags! </span>{
+<span class="macro">bitflags!</span> {
     <span class="kw">struct </span>Flags: u32 {
         <span class="kw">const </span>NONE = <span class="number">0b00000000</span>;
         <span class="kw">const </span>SOME = <span class="number">0b00000001</span>;
@@ -225,4 +221,4 @@ on the generated struct), you can simply derive <code>Default</code>:</p>
     </span><span class="macro">assert!</span>(none.is_empty());
 }</code></pre></div>
 <p>Users should generally avoid defining a flag with a value of zero.</p>
-</div></details><h2 id="macros" class="small-section-header"><a href="#macros">Macros</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="macro" href="macro.bitflags.html" title="bitflags::bitflags macro">bitflags</a></div><div class="item-right docblock-short">The macro used to generate the flag structures.</div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="bitflags" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.2 (9eb3afe9e 2023-03-27)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</div></details><h2 id="macros" class="section-header">Macros<a href="#macros" class="anchor">§</a></h2><dl class="item-table"><dt><a class="macro" href="macro.bitflags.html" title="macro bitflags::bitflags">bitflags</a></dt><dd>The macro used to generate the flag structures.</dd></dl></section></div></main></body></html>

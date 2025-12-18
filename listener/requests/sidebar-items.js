@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":[["check_solutions",""],["count_solutions",""],["process_fpuzzles_data",""],["process_message",""]]};
+window.SIDEBAR_ITEMS = {"fn":["check_solutions","count_solutions","process_fpuzzles_data","process_message","true_candidates"]};
